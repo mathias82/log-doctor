@@ -1,8 +1,13 @@
 package io.github.mathias82.logdoctor.engine;
 
 import io.github.mathias82.logdoctor.core.Confidence;
+import io.github.mathias82.logdoctor.core.FixPolicy;
+import io.github.mathias82.logdoctor.core.FixType;
+import io.github.mathias82.logdoctor.core.IncidentCategory;
 import io.github.mathias82.logdoctor.llm.LlmClient;
 import io.github.mathias82.logdoctor.llm.OllamaLlmClient;
+
+import java.util.Set;
 
 public class DiagnosisEngine {
 
@@ -36,18 +41,37 @@ public class DiagnosisEngine {
         detector.detect(ruleContext)
                 .filter(i -> i.confidence() == Confidence.HIGH)
                 .ifPresentOrElse(
-                incident -> {
-                    incident.setEvidence(contextText);
+                        incident -> {
+                            incident.setEvidence(contextText);
 
-                    incident.setComponent(
-                            failure.blameLocation() != null
-                                    ? failure.blameLocation().content()
-                                    : failure.rootCause().content()
-                    );
+                            incident.setComponent(
+                                    failure.blameLocation() != null
+                                            ? failure.blameLocation().content()
+                                            : failure.rootCause().content()
+                            );
 
-                    System.out.println(incident.format());
-                    System.out.println(llm.explainKnownIncident(incident));
-                },
+                            System.out.println(incident.format());
+
+                            var allowedFixes = FixPolicy.allowedFixes(incident.category());
+                            if (allowedFixes.size() == 1 && allowedFixes.contains(FixType.NO_AUTOMATIC_FIX)) {
+                                System.out.println("""
+                                FIX:
+                                No safe automatic fix, human investigation required.
+                                """);
+                                return;
+                            }
+
+                            if (FixPolicy.allowedFixes(incident.category())
+                                    .equals(Set.of(FixType.NO_AUTOMATIC_FIX))) {
+
+                                System.out.println(incident.format());
+                                System.out.println("No safe automatic fix, human investigation required.");
+                                return;
+                            }
+
+
+                            System.out.println(llm.explainKnownIncident(incident));
+                        },
                 () -> {
                     System.out.println(
                             "Unknown failure detected at line "
@@ -67,12 +91,33 @@ public class DiagnosisEngine {
                             Concurrency / data consistency failure detected in application layer
                             
                             FIX:
-                            No safe automatic fix – human investigation required.
+                            No safe automatic fix, human investigation required.
                             """);
                         return;
                     }
 
-                    System.out.println(llm.analyzeUnknownLog(contextText));
+                    if (concurrencyText.contains("illegalstateexception")
+                            && (concurrencyText.contains("transition")
+                            || concurrencyText.contains("state")
+                            || concurrencyText.contains("not allowed"))) {
+
+                        System.out.println("""
+                        WHERE:
+                        Domain state machine / business invariant violation
+                        
+                        FIX:
+                        No safe automatic fix, human investigation required.
+                        """);
+                        return;
+                    }
+
+                    IncidentCategory inferredCategory =
+                            contextText.contains("RestTemplate")
+                                    || contextText.contains("SocketTimeoutException")
+                                    ? IncidentCategory.INFRASTRUCTURE
+                                    : IncidentCategory.UNKNOWN;
+
+                    System.out.println(llm.analyzeUnknownLog(contextText, inferredCategory));
                 }
         );
     }

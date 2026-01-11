@@ -54,6 +54,13 @@ public final class LlmPrompts {
     - Controller-level fixes are FORBIDDEN.
     - Hibernate Session APIs are FORBIDDEN.
     - You MUST NOT invent infrastructure or framework workarounds.
+    
+    - For MEMORY incidents:
+      - You MUST NOT propose Java code changes
+      - You MUST NOT propose JVM flags
+      - You MUST output:
+        No safe automatic fix – human investigation required.
+        
 
     YOUR TASK (ONLY THESE 2 THINGS):
 
@@ -62,7 +69,7 @@ public final class LlmPrompts {
        - layer (controller / service / repository)
        - method or line if possible
 
-    2) Provide the FIX using ONLY ONE allowed fix type.
+    2) Provide the FIX
 
     OUTPUT FORMAT (MANDATORY):
 
@@ -88,30 +95,71 @@ public final class LlmPrompts {
     }
 
 
-    public static String unknownLogPrompt(String rawLog) {
+    public static String unknownLogPrompt(String rawLog, IncidentCategory category) {
+
+        var allowedFixes = FixPolicy.allowedFixes(category)
+                .stream()
+                .map(Enum::name)
+                .collect(Collectors.joining(", "));
+
         return """
-        You are a senior JVM / Spring / Kafka production engineer.
+    You are a senior JVM / Spring / Kafka production engineer.
 
-        Analyze the log below.
-        TASK (ONLY THESE 2 THINGS):
-                 
-        1) WHERE:
-           - Component (exact class if possible)
-           - Layer (controller / service / repository / infra)
-           - Reason (one short sentence)
-         
-        2) FIX:
-           - Provide ONE concrete fix
-           - Output ONLY code or config
-           - Do NOT explain
-           - Do NOT give alternatives
-         
-        If NO safe fix exists, output EXACTLY:
-        No safe automatic fix – human investigation required.
-                 
+    Analyze the log below.
+    
+       SAFE FIX RULES:
+        - JSON / Jackson deserialization errors ARE SAFE
+        - Enum, LocalDate, LocalDateTime mismatches ARE SAFE
+        - Spring @RequestBody binding errors ARE SAFE
+        - ConfigurationProperties bind errors ARE SAFE
 
-        Log:
-        %s
-        """.formatted(rawLog);
+    TASK (ONLY THESE 2 THINGS):
+
+    1) WHERE:
+       - Component (exact class if possible)
+       - Layer (controller / service / repository / infra)
+       - Reason (one short sentence)
+
+    2) FIX:
+       - Provide ONE concrete fix ONLY IF IT IS SAFE
+       - Output ONLY code or config
+       - Do NOT explain
+       - Do NOT give alternatives
+
+    ABSOLUTE RULES (NON-NEGOTIABLE):
+
+    - If the log contains ANY of the following:
+      * ThreadPoolExecutor
+      * RejectedExecutionException
+      * queued tasks
+      * scheduler
+      * starvation
+      * deadlock
+      * pool exhausted
+      * backpressure
+
+      You MUST output EXACTLY:
+      No safe automatic fix, human investigation required.
+
+    - You MUST NOT suggest:
+      * Increasing thread pools
+      * Changing executor configuration
+      * Retrying
+      * Async workarounds
+      * Performance tuning
+
+    OUTPUT FORMAT (MANDATORY):
+
+    WHERE:
+    <component + layer + reason>
+
+    FIX:
+    ```
+    <fix here>
+    ```
+    
+    Log:
+    %s
+    """.formatted(category, allowedFixes, rawLog);
     }
 }

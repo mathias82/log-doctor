@@ -20,7 +20,9 @@ public class IncidentDetector {
             new ThreadStarvationRule(),
             new GcThrashingRule(),
             new DeadlockRule(),
-            new KafkaTopicNotFoundRule()
+            new KafkaTopicNotFoundRule(),
+            new IllegalStateBusinessRule(),
+            new NullInputRule()
     );
 
     public Optional<Incident> detect(RuleContext context) {

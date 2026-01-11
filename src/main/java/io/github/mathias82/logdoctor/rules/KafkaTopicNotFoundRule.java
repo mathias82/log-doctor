@@ -14,8 +14,8 @@ public class KafkaTopicNotFoundRule implements IncidentRule {
         String log = ctx.contextText();
 
         if (log.contains("not present in metadata")
-                && log.contains("Topic")
-                && log.contains("TimeoutException")) {
+                || log.contains("Topic") && log.contains("metadata")
+                || log.contains("Send failed")) {
 
             KafkaTopicNotFoundIncident incident =
                     new KafkaTopicNotFoundIncident();

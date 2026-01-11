@@ -13,8 +13,7 @@ public final class FixPolicy {
             case DATABASE -> Set.of(
                     FixType.JAVA_CODE
             );
-            case INFRASTRUCTURE -> EnumSet.of(
-                    FixType.KAFKA_CLI,
+            case INFRASTRUCTURE -> Set.of(
                     FixType.NO_AUTOMATIC_FIX
             );
             case DESERIALIZATION -> EnumSet.of(
@@ -30,6 +29,9 @@ public final class FixPolicy {
             );
             case THREADING -> EnumSet.of(
                     FixType.JAVA_CODE,
+                    FixType.NO_AUTOMATIC_FIX
+            );
+            case BUSINESS -> EnumSet.of(
                     FixType.NO_AUTOMATIC_FIX
             );
             default -> EnumSet.of(FixType.NO_AUTOMATIC_FIX);
