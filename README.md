@@ -1,4 +1,4 @@
-<img width="1703" height="1090" alt="image" src="https://github.com/user-attachments/assets/f67fdc13-8ff4-4ee8-b706-a4f1d5604e1e" /># 🩺 Log Doctor
+# 🩺 Log Doctor
 **Deterministic + LLM-powered Production Log Diagnosis for JVM / Spring / Kafka**
 
 > A deterministic Java log analyzer for Spring Boot, Hibernate and Kafka,
