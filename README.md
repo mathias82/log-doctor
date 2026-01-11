@@ -3,6 +3,9 @@
 **Advanced Production Log Analysis for JVM-based Systems (Spring Boot, Hibernate, Kafka)**  
 Built for real-world production environments. Privacy-first, deterministic, and safe.
 
+> A deterministic Java log analyzer for Spring Boot, Hibernate and Kafka,
+> powered by local LLMs (Ollama) for safe production diagnostics.
+
 [📚 View Detailed Docs →](https://github.com/mathias82/log-doctor/tree/main/docs)
 
 ---
@@ -40,6 +43,14 @@ Stacktraces hide real issues. Most tools **show logs** — but don’t **underst
 - **Local LLM diagnosis** — privacy-preserving, no external API calls.  
 - **FixPolicy safety system** — defines what can be auto-fixed.  
 - **Refusal mechanism** — knows when *not* to act.  
+
+---
+
+### 🧩 How Rules Are Applied
+- Logs are parsed line by line
+- The deepest application-level failure is selected
+- Deterministic rules are evaluated first
+- LLM is used only if no rule matches
 
 ---
 
@@ -89,6 +100,10 @@ An **Incident** represents a reproducible production failure with structured met
 ---
 
 ## ✅ Supported Errors & Failure Categories
+
+Each supported error is implemented as an independent deterministic rule
+under the `rules/` package and can be enabled, disabled or extended without
+affecting the rest of the system.
 
 This section summarizes all the deterministic rules and supported incident types.  
 📘 *See also:* [Supported Errors Documentation →](https://github.com/mathias82/log-doctor/tree/main/docs)
@@ -186,6 +201,9 @@ This section summarizes all the deterministic rules and supported incident types
 | **ThreadStarvationRule** | Thread pool deadlock condition |
 
 ---
+
+### ▶️ End-to-End Demo Flow
+Raw log → Root cause → Blame location → Fix (or refusal)
 
 ## 🧪 Example: Hibernate LazyInitializationException
 
