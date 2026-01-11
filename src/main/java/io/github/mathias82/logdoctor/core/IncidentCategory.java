@@ -8,5 +8,6 @@ public enum IncidentCategory {
     THREADING,
     DATABASE,
     BUSINESS,
+    TECHNICAL,
     UNKNOWN
 }

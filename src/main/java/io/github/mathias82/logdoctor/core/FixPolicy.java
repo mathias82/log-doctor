@@ -31,6 +31,9 @@ public final class FixPolicy {
                     FixType.JAVA_CODE,
                     FixType.NO_AUTOMATIC_FIX
             );
+            case TECHNICAL -> EnumSet.of(
+                    FixType.JAVA_CODE
+            );
             case BUSINESS -> EnumSet.of(
                     FixType.NO_AUTOMATIC_FIX
             );

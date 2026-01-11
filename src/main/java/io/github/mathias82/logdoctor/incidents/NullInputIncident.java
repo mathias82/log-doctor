@@ -11,7 +11,7 @@ public class NullInputIncident extends Incident {
 
     @Override
     public IncidentCategory category() {
-        return IncidentCategory.DESERIALIZATION;
+        return IncidentCategory.TECHNICAL;
     }
 
     @Override
