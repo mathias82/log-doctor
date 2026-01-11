@@ -159,9 +159,9 @@ com.mycompany.myservice.domain.User.orders, could not initialize proxy - no Sess
 **Output**
 ```
 WHERE:
-- component: UserService
-- layer: SERVICE
-- method or line: UserService.toDto(UserService.java:74)
+ component: UserService
+ layer: SERVICE
+ method or line: UserService.toDto(UserService.java:74)
 
 FIX_TYPE: JAVA_CODE
 
