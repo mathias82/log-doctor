@@ -6,6 +6,23 @@
 
 ---
 
+## 📌 Table of Contents
+- Overview
+- Why Log Doctor
+- Key Features
+- Architecture
+- Failure Detection Strategy
+- Demo Example
+- Refusal Policy
+- Documentation
+- Running with Ollama
+- Project Structure
+- Who Is This For?
+- Philosophy
+- License
+
+---
+
 ## 🧭 Overview
 **Log Doctor** is a **production-grade log analysis tool** that detects failures in JVM-based systems  
 (**Spring Boot**, **Hibernate**, **Kafka**) and provides **precise root-cause analysis** and **safe fixes**.
