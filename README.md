@@ -1,4 +1,4 @@
-# 🩺 Log Doctor
+<img width="1703" height="1090" alt="image" src="https://github.com/user-attachments/assets/f67fdc13-8ff4-4ee8-b706-a4f1d5604e1e" /># 🩺 Log Doctor
 **Deterministic + LLM-powered Production Log Diagnosis for JVM / Spring / Kafka**
 
 > A deterministic Java log analyzer for Spring Boot, Hibernate and Kafka,
@@ -137,26 +137,43 @@ Raw log → Root cause → Blame location → Fix (or refusal)
 
 **Input Log**
 ```
+2026-05-10 10:14:33.412 ERROR [http-nio-8080-exec-4] o.s.web.servlet.DispatcherServlet :
+Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception
+
+org.springframework.web.util.NestedServletException: Request processing failed
+    at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014)
+    at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:898)
+
 Caused by: org.hibernate.LazyInitializationException:
 failed to lazily initialize a collection of role:
 com.mycompany.myservice.domain.User.orders, could not initialize proxy - no Session
-at com.mycompany.myservice.service.UserService.toDto(UserService.java:74)
+    at org.hibernate.collection.internal.AbstractPersistentCollection.throwLazyInitializationException(AbstractPersistentCollection.java:614)
+    at org.hibernate.collection.internal.AbstractPersistentCollection.withTemporarySessionIfNeeded(AbstractPersistentCollection.java:218)
+    at org.hibernate.collection.internal.AbstractPersistentCollection.initialize(AbstractPersistentCollection.java:591)
+    at org.hibernate.collection.internal.AbstractPersistentCollection.read(AbstractPersistentCollection.java:149)
+    at com.mycompany.myservice.service.UserService.toDto(UserService.java:74)
+    at com.mycompany.myservice.api.UserController.getUser(UserController.java:52)
+    at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
 ```
 
 **Output**
 ```
 WHERE:
-UserService.toDto(UserService.java:74) – service – lazy association accessed outside transaction
+- component: UserService
+- layer: SERVICE
+- method or line: UserService.toDto(UserService.java:74)
 
 FIX_TYPE: JAVA_CODE
 
 FIX:
-@Transactional(readOnly = true)
-public UserDto getUser(Long id) {
-    User user = userRepository.findByIdWithOrders(id);
-    return UserDto.from(user);
+```
+@Transactional
+public UserDto toDto(User user) {
+    return new UserDto(user.getId(), user.getName(),
+                      Optional.ofNullable(user.getOrders()).orElse(Collections.emptyList()));
 }
 ```
+<img width="1703" height="1090" alt="image" src="https://github.com/user-attachments/assets/8b0f5d3c-2519-4927-85e7-c26962370dfa" />
 
 ---
 
