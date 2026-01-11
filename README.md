@@ -1,3 +1,7 @@
+![MIT License](https://img.shields.io/badge/license-MIT-blue)
+![Java CI](https://img.shields.io/badge/build-passing-brightgreen)
+![Ollama Model](https://img.shields.io/badge/LLM-llama3-orange)
+
 # 🩺 Log Doctor
 **Deterministic + LLM-powered Production Log Diagnosis for JVM / Spring / Kafka**
 
@@ -20,6 +24,13 @@
 - Who Is This For?
 - Philosophy
 - License
+
+---
+
+## 📚 Documentation
+
+- [Supported Errors](docs/supported-errors.md)
+- [Detailed Incident Breakdown](docs/incidents.md)
 
 ---
 
@@ -291,4 +302,3 @@ If your tool:
 - Explains theory only → 💤 *It’s not production-ready*  
 
 > 🩺 **Log Doctor does none of the above.**  
-> [Visit Documentation →](https://github.com/mathias82/log-doctor/tree/main/docs)
