@@ -1,57 +1,26 @@
 package io.github.mathias82.logdoctor.cli;
 
-import io.github.mathias82.logdoctor.core.analysis.AnalysisEngine;
-import io.github.mathias82.logdoctor.core.analysis.AnalysisResult;
-import io.github.mathias82.logdoctor.core.analysis.Finding;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
+import io.github.mathias82.logdoctor.engine.DiagnosisEngine;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.Callable;
 
-@Command(
-        name = "analyze",
-        description = "Analyze a log file and print the most likely root cause + fixes.",
-        mixinStandardHelpOptions = true
-)
-public class AnalyzeCommand implements Callable<Integer> {
+public final class AnalyzeCommand {
 
-    @Option(names = {"-f", "--file"}, required = true, description = "Path to log file.")
-    Path file;
+    private AnalyzeCommand(){}
 
-    @Option(names = {"--max-findings"}, defaultValue = "5", description = "Max findings to print.")
-    int maxFindings;
-
-    @Override
-    public Integer call() {
-        AnalysisEngine engine = AnalysisEngine.defaultEngine();
-        AnalysisResult result = engine.analyzeFile(file);
-
-        if (result.findings().isEmpty()) {
-            System.out.println("No obvious failure pattern found. Try providing more logs around the error.");
-            return 0;
+    public static void run(String[] args) {
+        if (args.length < 2 || !args[0].equals("--file")) {
+            System.out.println("Usage: log-doctor --file <logfile>");
+            return;
         }
 
-        System.out.println("=== Log Doctor Report ===");
-        System.out.println("File: " + file.toAbsolutePath());
-        System.out.println();
-
-        int count = 0;
-        for (Finding f : result.findings()) {
-            count++;
-            System.out.printf("%d) [%s] %s%n", count, f.severity(), f.title());
-            System.out.println("   Signature: " + f.signature());
-            System.out.println("   Why: " + f.why());
-            if (!f.howToFix().isEmpty()) {
-                System.out.println("   Fix:");
-                for (String step : f.howToFix()) {
-                    System.out.println("    - " + step);
-                }
-            }
-            System.out.println();
-            if (count >= maxFindings) break;
+        try {
+            String log = Files.readString(Path.of(args[1]));
+            DiagnosisEngine engine = new DiagnosisEngine();
+            engine.analyze(log);
+        } catch (Exception e) {
+            System.err.println("Failed to analyze log: " + e.getMessage());
         }
-
-        return 0;
     }
 }
