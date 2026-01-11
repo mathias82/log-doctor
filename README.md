@@ -299,7 +299,7 @@ log-doctor/
 
 ## 📄 License
 
-MIT License — use it, extend it, improve it.
+Apache 2.0 License — use it, extend it, improve it.
 
 ---
 
