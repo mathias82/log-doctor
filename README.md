@@ -44,11 +44,19 @@ Modern JVM applications produce **massive logs**, but:
 
 Known production failures are detected with **HIGH confidence**, without LLM guessing:
 
-- Hibernate `LazyInitializationException`
-- Spring `NoSuchBeanDefinitionException`
-- JSON / Jackson deserialization errors
-- Kafka infrastructure failures
-- Configuration & profile mismatches
+- Hibernate LazyInitializationException
+- Spring NoSuchBeanDefinitionException
+- Spring profile mismatches
+- Jackson / JSON deserialization failures
+- Kafka topic not found
+- Kafka schema incompatibility
+- HikariCP timeouts
+- Deadlocks & thread starvation
+- OutOfMemoryError
+- GC thrashing
+
+📄 Full list:
+👉 [docs/supported-errors.md](https://chatgpt.com/c/docs/supported-errors.md)
 
 Each incident includes:
 
