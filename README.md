@@ -56,7 +56,7 @@ Known production failures are detected with **HIGH confidence**, without LLM gue
 - GC thrashing
 
 📄 Full list:
-👉 [docs/supported-errors.md](https://chatgpt.com/c/docs/supported-errors.md)
+👉 [docs/supported-errors.md](https://github.com/mathias82/log-doctor/blob/main/docs/supported-errors.md)
 
 Each incident includes:
 
