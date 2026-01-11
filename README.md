@@ -1,89 +1,89 @@
-🩺 Log Doctor
-Deterministic + LLM-powered Production Log Diagnosis for JVM / Spring / Kafka
+# 🩺 Log Doctor  
+### Deterministic + LLM-powered Production Log Diagnosis for JVM / Spring / Kafka
 
-Log Doctor is a production-grade log analysis tool that detects failures in JVM-based systems (Spring Boot, Hibernate, Kafka) and provides precise root-cause analysis and safe fixes.
+Log Doctor is a **production-grade log analysis tool** that detects failures in JVM-based systems (Spring Boot, Hibernate, Kafka) and provides **precise root-cause analysis and safe fixes**.
 
 It combines:
 
-Deterministic rule-based detection (HIGH confidence incidents)
+- **Deterministic rule-based detection** (HIGH confidence incidents)
+- **Local LLM reasoning via Ollama** (for unknown or ambiguous logs)
 
-Local LLM reasoning via Ollama (for unknown or ambiguous logs)
+Designed for **real production systems**, not toy examples.
 
-Designed for real production systems, not toy examples.
+---
 
-🚀 Why Log Doctor?
+## 🚀 Why Log Doctor?
 
 Modern JVM applications produce massive logs, but:
 
-Stacktraces are noisy
+- Stacktraces are noisy  
+- Root causes are buried  
+- Most tools only *display* logs — they don’t *understand* them  
 
-Root causes are buried
+**Log Doctor answers two critical questions:**
 
-Most tools only display logs — they don’t understand them
+1. **Where exactly is the error?** (component + layer)  
+2. **What is the safest possible fix?** (only if one exists)
 
-Log Doctor answers two critical questions:
-
-Where exactly is the error? (component + layer)
-
-What is the safest possible fix? (only if one exists)
-
-No generic advice.
-No theory.
+No generic advice.  
+No theory.  
 No hallucinated fixes.
 
-✨ Key Features
-✅ Deterministic Incident Detection
+---
 
-Known production failures are detected with HIGH confidence, without LLM guessing:
+## ✨ Key Features
 
-Hibernate LazyInitializationException
+### ✅ Deterministic Incident Detection
 
-Spring NoSuchBeanDefinitionException
+Known production failures are detected with **HIGH confidence**, without LLM guessing:
 
-JSON / Jackson deserialization errors
-
-Kafka infrastructure failures
-
-Configuration & profile mismatches
+- Hibernate `LazyInitializationException`
+- Spring `NoSuchBeanDefinitionException`
+- JSON / Jackson deserialization errors
+- Kafka infrastructure failures
+- Configuration & Spring profile mismatches
 
 Each incident has:
 
-Category
+- Category
+- Severity
+- Confidence
+- Allowed fix types (policy-driven)
 
-Severity
+---
 
-Confidence
+### 🧠 LLM-Assisted Diagnosis (Local, Safe)
 
-Allowed fix types (policy-driven)
+For unknown failures, Log Doctor uses a **local LLM via Ollama** to:
 
-🧠 LLM-Assisted Diagnosis (Local, Safe)
+- Identify the deepest application-level root cause
+- Decide whether a **safe automatic fix exists**
+- Refuse to propose fixes when **human investigation is required**
 
-For unknown failures, Log Doctor uses a local LLM via Ollama to:
+⚠️ No cloud APIs  
+⚠️ No data leakage  
+⚠️ No hallucinated infrastructure fixes  
 
-Identify the deepest application-level root cause
+---
 
-Decide whether a safe automatic fix exists
+## 🔐 Fix Safety by Design
 
-Refuse to propose fixes when human investigation is required
+Every fix is constrained by **FixPolicy**.
 
-⚠️ No cloud APIs
-⚠️ No data leakage
-⚠️ No hallucinated infra fixes
+| Category | Allowed Fixes |
+|--------|---------------|
+| DATABASE | JAVA_CODE |
+| CONFIGURATION | SPRING_CONFIG |
+| DESERIALIZATION | JAVA_CODE / SPRING_CONFIG |
+| INFRASTRUCTURE | KAFKA_CLI / NO_AUTOMATIC_FIX |
+| THREADING | JAVA_CODE / NO_AUTOMATIC_FIX |
 
-🔐 Fix Safety by Design
+The LLM **cannot violate these rules**.
 
-Every fix is constrained by FixPolicy:
+---
 
-Category	Allowed Fixes
-DATABASE	JAVA_CODE
-CONFIGURATION	SPRING_CONFIG
-DESERIALIZATION	JAVA_CODE / SPRING_CONFIG
-INFRASTRUCTURE	KAFKA_CLI / NO_AUTOMATIC_FIX
-THREADING	JAVA_CODE / NO_AUTOMATIC_FIX
+## 🧩 Architecture Overview
 
-The LLM cannot violate these rules.
-
-🧩 Architecture Overview
 ┌──────────────┐
 │   Raw Logs   │
 └──────┬───────┘
@@ -108,32 +108,36 @@ The LLM cannot violate these rules.
 │ (constrained) │ (safe reasoning)    │
 └───────────────┴─────────────────────┘
 
-🧠 Failure Detection Strategy
-Root Cause Selection
 
-Prefer deepest Caused by
+---
 
-Prefer application-level exceptions
+## 🧠 Failure Detection Strategy
 
-Avoid framework noise (org.springframework, org.hibernate internals)
+### Root Cause Selection
+- Prefer **deepest `Caused by`**
+- Prefer **application-level exceptions**
+- Avoid framework noise (`org.springframework`, `org.hibernate` internals)
 
-Blame Location
+### Blame Location
+- First meaningful `com.*` stack frame
+- Prefer `service` over `domain`
+- Fallback to last meaningful application log
 
-First meaningful com.* stack frame
+---
 
-Prefer service over domain
+## 🧪 Example: Hibernate LazyInitializationException
 
-Fallback to last meaningful application log
-
-🧪 Example: Hibernate LazyInitializationException
-Input Log
+### Input Log
+```log
 Caused by: org.hibernate.LazyInitializationException:
 failed to lazily initialize a collection of role:
 com.mycompany.myservice.domain.User.orders, could not initialize proxy - no Session
-at com.mycompany.myservice.service.UserService.toDto(UserService.java:74)
+    at com.mycompany.myservice.service.UserService.toDto(UserService.java:74)```
+---
 
-Output
-WHERE:
+### Output log
+
+```WHERE:
 UserService.toDto(UserService.java:74) – service – lazy association accessed outside transaction
 
 FIX_TYPE: JAVA_CODE
@@ -141,133 +145,8 @@ FIX_TYPE: JAVA_CODE
 FIX:
 @Transactional(readOnly = true)
 public UserDto getUser(Long id) {
-User user = userRepository.findByIdWithOrders(id);
-return UserDto.from(user);
-}
+    User user = userRepository.findByIdWithOrders(id);
+    return UserDto.from(user);
+}``` 
 
-❌ When Log Doctor REFUSES to Fix
-
-Some failures must not be auto-fixed, e.g.:
-
-Optimistic locking conflicts
-
-Concurrent updates
-
-Cross-transaction data consistency issues
-
-In such cases:
-
-No safe automatic fix – human investigation required.
-
-
-This is a feature, not a limitation.
-
-🦙 Running Log Doctor with Ollama (Local LLM)
-
-Log Doctor uses Ollama to run LLMs locally.
-
-1️⃣ Install Ollama
-
-👉 https://ollama.com
-
-Available for:
-
-macOS
-
-Linux
-
-Windows
-
-2️⃣ Pull a Model
-
-Recommended (fast + accurate):
-
-ollama pull llama3
-
-
-Other supported models:
-
-mistral
-
-codellama
-
-llama3:instruct
-
-3️⃣ Start Ollama
-ollama serve
-
-
-Ollama runs on:
-
-http://localhost:11434
-
-4️⃣ Run Log Doctor
-java -jar log-doctor-0.1.0.jar --file examples/app.log
-
-
-Log Doctor automatically connects to Ollama.
-
-⚙️ Configuration
-
-No configuration required by default.
-
-Optional (future-ready):
-
-Change model
-
-Adjust context radius
-
-Enable/disable LLM fallback
-
-📦 Project Structure
-log-doctor/
-├── core/
-│   ├── Incident.java
-│   ├── FixPolicy.java
-│   └── enums
-├── engine/
-│   ├── LogParser
-│   ├── FailureLocator
-│   ├── IncidentDetector
-│   └── DiagnosisEngine
-├── llm/
-│   ├── LlmPrompts
-│   ├── LlmClient
-│   └── OllamaLlmClient
-└── examples/
-
-🎯 Who Is This For?
-
-Backend engineers (Java / Spring)
-
-Platform & DevOps engineers
-
-Teams running Kafka & microservices
-
-Anyone debugging production logs at 3am
-
-🧭 Philosophy
-
-Determinism before AI
-
-Safety before automation
-
-Local-first, privacy-first
-
-Production realism over demos
-
-📄 License
-
-MIT License – use it, extend it, break it, improve it.
-
-⭐ Final Note
-
-If your tool:
-
-always proposes a fix → it’s lying
-
-never refuses → it’s dangerous
-
-explains theory → it’s not production-ready
-
-Log Doctor does none of the above.
+---
