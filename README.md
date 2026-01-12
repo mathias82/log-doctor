@@ -10,19 +10,21 @@
 ---
 
 ## 📌 Table of Contents
-- Overview
-- Why Log Doctor
-- Key Features
-- Architecture
-- Failure Detection Strategy
-- Demo Example
-- Refusal Policy
-- Documentation
-- Running with Ollama
-- Project Structure
-- Who Is This For?
-- Philosophy
-- License
+
+- [Overview](#overview)
+- [Why Log Doctor](#why-log-doctor)
+- [Key Features](#key-features)
+- [Architecture](#architecture)
+- [Failure Detection Strategy](#failure-detection-strategy)
+- [Demo Example](#demo-example)
+- [Refusal Policy](#refusal-policy)
+- [Documentation](#documentation)
+- [Running with Ollama](#running-with-ollama)
+- [Project Structure](#project-structure)
+- [Who Is This For?](#who-is-this-for)
+- [Philosophy](#philosophy)
+- [License](#license)
+
 
 ---
 
