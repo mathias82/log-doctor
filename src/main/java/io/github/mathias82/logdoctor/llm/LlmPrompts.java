@@ -127,6 +127,18 @@ public final class LlmPrompts {
         - Enum, LocalDate, LocalDateTime mismatches ARE SAFE
         - Spring @RequestBody binding errors ARE SAFE
         - ConfigurationProperties bind errors ARE SAFE
+        
+        ABSOLUTE RULE (CRITICAL):
+                    
+       - If ALLOWED FIX TYPES contains ONLY:
+         NO_AUTOMATIC_FIX
+                    
+         You MUST output EXACTLY:
+         
+         Recommendation:
+         No safe automatic fix, human investigation required.
+         
+         And NOTHING else.
 
     TASK (ONLY THESE 2 THINGS):
 
