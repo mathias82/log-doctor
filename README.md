@@ -9,7 +9,7 @@
 
 ---
 
-## 📌 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Why Log Doctor](#why-log-doctor)
