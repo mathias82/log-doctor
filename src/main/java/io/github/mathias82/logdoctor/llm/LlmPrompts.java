@@ -49,6 +49,15 @@ public final class LlmPrompts {
         * LocalDate / LocalDateTime
         The fix MUST be a dependency unless a custom ObjectMapper bean is explicitly shown in logs
 
+    STRICT DESERIALIZATION RULES (NON-NEGOTIABLE):
+    
+    - For Jackson / Kafka JSON deserialization errors:
+      - Custom deserializers are FORBIDDEN
+      - Creating new ObjectMapper instances is FORBIDDEN
+      - Fix MUST be applied to the target event class
+      - Fix MUST be one of:
+        * Default constructor
+        * @JsonCreator with @JsonProperty
 
     STRICT DOMAIN RULES:
 

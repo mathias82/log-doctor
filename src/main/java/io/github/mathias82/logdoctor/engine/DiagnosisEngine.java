@@ -69,7 +69,7 @@ public class DiagnosisEngine {
                                 return;
                             }
 
-
+                            System.out.println("Waiting LLM to Answer...");
                             System.out.println(llm.explainKnownIncident(incident));
                         },
                 () -> {
@@ -117,6 +117,7 @@ public class DiagnosisEngine {
                                     ? IncidentCategory.INFRASTRUCTURE
                                     : IncidentCategory.UNKNOWN;
 
+                    System.out.println("Waiting LLM to Answer...");
                     System.out.println(llm.analyzeUnknownLog(contextText, inferredCategory));
                 }
         );
