@@ -27,8 +27,23 @@ public class IncidentDetector {
             new MissingSpringBeanRule(),
             new JacksonLocalDateTimeRule(),
             new IndexOutOfBoundsRule(),
-            new NullPointerExceptionRule()
-            );
+            new NullPointerExceptionRule(),
+            new IllegalArgumentExceptionRule(),
+            new NoSuchElementExceptionRule(),
+            new ClassCastExceptionRule(),
+            new MethodArgumentNotValidRule(),
+            new HttpMessageNotReadableRule(),
+            new ConstraintViolationRule(),
+            new DataIntegrityViolationRule(),
+            new TransactionRequiredRule(),
+            new ConnectTimeoutRule(),
+            new UnknownHostRule(),
+            new UnsupportedOperationRule(),
+            new ConcurrentModificationRule(),
+            new NoSuchMethodErrorRule(),
+            new BeanCurrentlyInCreationRule(),
+            new AccessDeniedExceptionRule()
+    );
 
     public Optional<Incident> detect(RuleContext context) {
         return rules.stream()

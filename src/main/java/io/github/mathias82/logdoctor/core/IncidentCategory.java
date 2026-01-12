@@ -9,5 +9,6 @@ public enum IncidentCategory {
     DATABASE,
     BUSINESS,
     TECHNICAL,
+    SECURITY,
     UNKNOWN
 }
