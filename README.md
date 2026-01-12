@@ -1,4 +1,3 @@
-![MIT License](https://img.shields.io/badge/license-MIT-blue)
 ![Java CI](https://img.shields.io/badge/build-passing-brightgreen)
 ![Ollama Model](https://img.shields.io/badge/LLM-llama3-orange)
 
