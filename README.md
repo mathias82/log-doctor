@@ -26,13 +26,6 @@
 
 ---
 
-## 📚 Documentation
-
-- [Supported Errors](docs/supported-errors.md)
-- [Detailed Incident Breakdown](docs/incidents.md)
-
----
-
 ## 🧭 Overview
 **Log Doctor** is a **production-grade log analysis tool** that detects failures in JVM-based systems  
 (**Spring Boot**, **Hibernate**, **Kafka**) and provides **precise root-cause analysis** and **safe fixes**.
@@ -268,6 +261,13 @@ log-doctor/
 - Platform & DevOps engineers
 - Kafka & microservices teams
 - Anyone debugging production logs at 3AM
+
+---
+
+## 📚 Documentation
+
+- [Supported Errors](docs/supported-errors.md)
+- [Detailed Incident Breakdown](docs/incidents.md)
 
 ---
 
