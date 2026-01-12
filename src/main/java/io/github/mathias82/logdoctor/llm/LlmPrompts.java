@@ -34,6 +34,21 @@ public final class LlmPrompts {
 
     ALLOWED FIX TYPES:
     %s
+    
+    STRICT SPRING BOOT RULES (NON-NEGOTIABLE):
+    
+    - If the application is Spring Boot:
+      - XML-based Spring configuration is FORBIDDEN
+      - ObjectMapper XML beans are FORBIDDEN
+      - Jackson issues MUST be fixed via:
+        * Maven / Gradle dependency
+        * OR Java @Configuration
+      - If logs mention:
+        * jackson-datatype-jsr310
+        * JavaTimeModule
+        * LocalDate / LocalDateTime
+        The fix MUST be a dependency unless a custom ObjectMapper bean is explicitly shown in logs
+
 
     STRICT DOMAIN RULES:
 
@@ -103,11 +118,11 @@ public final class LlmPrompts {
                 .collect(Collectors.joining(", "));
 
         return """
-    You are a senior JVM / Spring / Kafka production engineer.
-
-    Analyze the log below.
-    
-       SAFE FIX RULES:
+        You are a senior JVM / Spring / Kafka production engineer.
+        
+        Analyze the log below.
+        
+        SAFE FIX RULES:
         - JSON / Jackson deserialization errors ARE SAFE
         - Enum, LocalDate, LocalDateTime mismatches ARE SAFE
         - Spring @RequestBody binding errors ARE SAFE

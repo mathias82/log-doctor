@@ -22,8 +22,13 @@ public class IncidentDetector {
             new DeadlockRule(),
             new KafkaTopicNotFoundRule(),
             new IllegalStateBusinessRule(),
-            new NullInputRule()
-    );
+            new NullInputRule(),
+            new JavaTimeSerializationRule(),
+            new MissingSpringBeanRule(),
+            new JacksonLocalDateTimeRule(),
+            new IndexOutOfBoundsRule(),
+            new NullPointerExceptionRule()
+            );
 
     public Optional<Incident> detect(RuleContext context) {
         return rules.stream()

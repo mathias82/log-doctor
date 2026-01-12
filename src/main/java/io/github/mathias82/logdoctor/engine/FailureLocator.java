@@ -8,15 +8,29 @@ public class FailureLocator {
 
     public Optional<Failure> locate(List<LogLine> lines) {
 
+        LogLine rootCause = null;
+
         List<LogLine> causedByLines = lines.stream()
                 .filter(l -> l.content().trim().startsWith("Caused by"))
                 .toList();
 
-        LogLine rootCause;
-
         if (!causedByLines.isEmpty()) {
             rootCause = causedByLines.get(causedByLines.size() - 1);
-        } else {
+        }
+
+        if (rootCause == null) {
+            rootCause = lines.stream()
+                    .filter(l ->
+                            l.content().contains("IllegalStateException")
+                                    || l.content().contains("SocketTimeoutException")
+                                    || l.content().contains("TimeoutException")
+                                    || l.content().contains("RejectedExecutionException")
+                    )
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        if (rootCause == null) {
             rootCause = lines.stream()
                     .filter(l -> l.content().contains("Exception")
                             || l.content().contains("Error"))
@@ -33,6 +47,7 @@ public class FailureLocator {
 
         return Optional.of(new Failure(rootCause, blame));
     }
+
 
     /**
      * Βρίσκει ΠΟΥ στον κώδικα έγινε το λάθος
