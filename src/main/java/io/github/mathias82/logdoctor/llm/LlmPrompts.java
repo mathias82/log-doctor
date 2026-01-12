@@ -93,7 +93,7 @@ public final class LlmPrompts {
 
     FIX_TYPE: <one of %s>
 
-    FIX:
+    Recommendation:
     ```
     <fix here>
     ```
@@ -168,7 +168,7 @@ public final class LlmPrompts {
     WHERE:
     <component + layer + reason>
 
-    FIX:
+    Recommendation:
     ```
     <fix here>
     ```
