@@ -37,7 +37,6 @@ public class DiagnosisEngine {
                 contextText
         );
 
-
         detector.detect(ruleContext)
                 .filter(i -> i.confidence() == Confidence.HIGH)
                 .ifPresentOrElse(
@@ -53,19 +52,12 @@ public class DiagnosisEngine {
                             System.out.println(incident.format());
 
                             var allowedFixes = FixPolicy.allowedFixes(incident.category());
-                            if (allowedFixes.size() == 1 && allowedFixes.contains(FixType.NO_AUTOMATIC_FIX)) {
+                            if (allowedFixes.equals(Set.of(FixType.NO_AUTOMATIC_FIX))) {
+                                System.out.println(incident.format());
                                 System.out.println("""
                                 FIX:
                                 No safe automatic fix, human investigation required.
                                 """);
-                                return;
-                            }
-
-                            if (FixPolicy.allowedFixes(incident.category())
-                                    .equals(Set.of(FixType.NO_AUTOMATIC_FIX))) {
-
-                                System.out.println(incident.format());
-                                System.out.println("No safe automatic fix, human investigation required.");
                                 return;
                             }
 
@@ -89,10 +81,10 @@ public class DiagnosisEngine {
                         System.out.println("""
                             WHERE:
                             Concurrency / data consistency failure detected in application layer
-                            
+
                             FIX:
                             No safe automatic fix, human investigation required.
-                            """);
+                        """);
                         return;
                     }
 
@@ -102,11 +94,11 @@ public class DiagnosisEngine {
                             || concurrencyText.contains("not allowed"))) {
 
                         System.out.println("""
-                        WHERE:
-                        Domain state machine / business invariant violation
-                        
-                        FIX:
-                        No safe automatic fix, human investigation required.
+                            WHERE:
+                            Domain state machine / business invariant violation
+
+                            FIX:
+                            No safe automatic fix, human investigation required.
                         """);
                         return;
                     }
