@@ -31,6 +31,7 @@ class LogBatchAnalyzerTest {
         assertThat(result.incidents().getFirst().firstSeen()).isNotNull();
         assertThat(result.incidents().getFirst().lastSeen()).isNotNull();
         assertThat(result.truncated()).isFalse();
+        assertThat(result.reportMarkdown()).contains("# Log Doctor Incident Report", "## Incident groups");
     }
 
     @Test
@@ -49,10 +50,11 @@ class LogBatchAnalyzerTest {
         assertThat(result.detectedFailureBlocks()).isEqualTo(1);
         assertThat(result.failureBlocks()).isEqualTo(1);
         assertThat(result.correlations()).isEmpty();
+        assertThat(result.rootCauseChains()).isEmpty();
     }
 
     @Test
-    void derivesCorrelationForConsecutiveDifferentFailuresWithinWindow() {
+    void derivesScoredRootCauseCandidateForConsecutiveDifferentFailuresWithinWindow() {
         String log = """
                 2026-09-01 14:32:17 ERROR first failure
                 java.lang.RuntimeException: boom
@@ -64,7 +66,30 @@ class LogBatchAnalyzerTest {
 
         assertThat(result.failureBlocks()).isGreaterThanOrEqualTo(2);
         assertThat(result.correlations()).isNotEmpty();
-        assertThat(result.correlations().getFirst().occurrences()).isGreaterThanOrEqualTo(1);
+        assertThat(result.rootCauseChains()).isNotEmpty();
+        assertThat(result.rootCauseChains().getFirst().score()).isBetween(0, 100);
+        assertThat(result.rootCauseChains().getFirst().reason()).contains("not proven causation");
+    }
+
+    @Test
+    void detectsBurstAgainstPerMinuteBaseline() {
+        String log = """
+                2026-09-01 14:30:01 ERROR request failed
+                java.lang.RuntimeException: boom 1
+                2026-09-01 14:30:10 ERROR request failed
+                java.lang.RuntimeException: boom 2
+                2026-09-01 14:30:20 ERROR request failed
+                java.lang.RuntimeException: boom 3
+                2026-09-01 14:32:10 ERROR request failed
+                java.lang.RuntimeException: boom 4
+                """;
+
+        var result = analyzer.analyze(log);
+
+        assertThat(result.spikes()).isNotEmpty();
+        assertThat(result.spikes().getFirst().count()).isEqualTo(3);
+        assertThat(result.spikes().getFirst().multiplier()).isGreaterThanOrEqualTo(2.0);
+        assertThat(result.reportMarkdown()).contains("## Spikes", "3 events near");
     }
 
     @Test
@@ -80,6 +105,7 @@ class LogBatchAnalyzerTest {
 
         assertThat(result.detectedFailureBlocks()).isEqualTo(2);
         assertThat(result.correlations()).isEmpty();
+        assertThat(result.rootCauseChains()).isEmpty();
     }
 
     @Test
@@ -94,6 +120,7 @@ class LogBatchAnalyzerTest {
         var result = analyzer.analyze(log);
 
         assertThat(result.correlations()).isEmpty();
+        assertThat(result.rootCauseChains()).isEmpty();
     }
 
     @Test
@@ -108,6 +135,7 @@ class LogBatchAnalyzerTest {
         var result = analyzer.analyze(log);
 
         assertThat(result.correlations()).isNotEmpty();
+        assertThat(result.rootCauseChains()).isNotEmpty();
     }
 
     @Test
@@ -118,6 +146,9 @@ class LogBatchAnalyzerTest {
         assertThat(result.uniqueIncidents()).isZero();
         assertThat(result.incidents()).isEmpty();
         assertThat(result.correlations()).isEmpty();
+        assertThat(result.rootCauseChains()).isEmpty();
+        assertThat(result.spikes()).isEmpty();
+        assertThat(result.reportMarkdown()).contains("No log content was provided");
         assertThat(result.truncated()).isFalse();
     }
 
