@@ -54,6 +54,10 @@ public class DiagnosisEngine {
     }
 
     public DiagnosisResult analyzeStructured(String log) {
+        return analyzeStructured(log, true);
+    }
+
+    DiagnosisResult analyzeStructured(String log, boolean allowLlm) {
         if (log == null || log.isBlank()) {
             return DiagnosisResult.empty("No log content provided.");
         }
@@ -74,7 +78,7 @@ public class DiagnosisEngine {
                 .filter(incident -> incident.confidence() == Confidence.HIGH);
 
         if (incidentOpt.isPresent()) {
-            return diagnosedIncident(incidentOpt.get(), contextText, location, failure.rootCause().lineNumber());
+            return diagnosedIncident(incidentOpt.get(), contextText, location, failure.rootCause().lineNumber(), allowLlm);
         }
 
         String lower = contextText.toLowerCase(Locale.ROOT);
@@ -102,10 +106,16 @@ public class DiagnosisEngine {
             );
         }
 
-        return unknownFailure(contextText, lower, location, failure.rootCause().content(), failure.rootCause().lineNumber());
+        return unknownFailure(contextText, lower, location, failure.rootCause().content(), failure.rootCause().lineNumber(), allowLlm);
     }
 
-    private DiagnosisResult diagnosedIncident(Incident incident, String evidence, String location, int failureLine) {
+    private DiagnosisResult diagnosedIncident(
+            Incident incident,
+            String evidence,
+            String location,
+            int failureLine,
+            boolean allowLlm
+    ) {
         incident.setEvidence(evidence);
         incident.setComponent(location);
 
@@ -113,7 +123,7 @@ public class DiagnosisEngine {
         boolean humanReview = allowedFixes.contains(FixType.NO_AUTOMATIC_FIX);
         String fixType = humanReview ? FixType.NO_AUTOMATIC_FIX.name() : formatFixTypes(allowedFixes);
         String fix = humanReview ? NO_AUTOMATIC_FIX : incident.recommendation();
-        String llmAnalysis = humanReview ? null : safelyExplainKnownIncident(incident);
+        String llmAnalysis = !allowLlm || humanReview ? null : safelyExplainKnownIncident(incident);
 
         String diagnosis = incident.format() + System.lineSeparator()
                 + "FIX:" + System.lineSeparator() + fix + System.lineSeparator()
@@ -138,9 +148,16 @@ public class DiagnosisEngine {
         );
     }
 
-    private DiagnosisResult unknownFailure(String contextText, String lower, String location, String rootCause, int failureLine) {
+    private DiagnosisResult unknownFailure(
+            String contextText,
+            String lower,
+            String location,
+            String rootCause,
+            int failureLine,
+            boolean allowLlm
+    ) {
         IncidentCategory category = inferUnknownCategory(lower);
-        String llmAnalysis = safelyAnalyzeUnknownLog(contextText, category);
+        String llmAnalysis = allowLlm ? safelyAnalyzeUnknownLog(contextText, category) : null;
         String fix = llmAnalysis == null
                 ? "No deterministic rule matched and local LLM analysis is unavailable. Human review required."
                 : "Review the local LLM analysis and supporting evidence.";

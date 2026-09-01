@@ -22,6 +22,11 @@ import java.util.regex.Pattern;
 /**
  * Splits a log stream into failure blocks, diagnoses each block independently,
  * groups repeated failures into incident fingerprints and derives timeline insights.
+ *
+ * <p>Batch analysis deliberately performs a deterministic-only first pass. After
+ * grouping, at most one representative unknown failure per fingerprint is sent
+ * through the optional local LLM. This keeps repeated failures from multiplying
+ * model calls while preserving the existing structured diagnosis contract.</p>
  */
 public final class LogBatchAnalyzer {
     static final int MAX_INCIDENT_BLOCKS = 500;
@@ -59,12 +64,15 @@ public final class LogBatchAnalyzer {
         List<DiagnosedEvent> diagnosedEvents = new ArrayList<>();
 
         for (FailureBlock block : blocks.stream().limit(MAX_INCIDENT_BLOCKS).toList()) {
-            var result = engine.analyzeStructured(block.text());
+            var result = engine.analyzeStructured(block.text(), false);
             if ("NO_FAILURE".equals(result.status())) continue;
             String fingerprint = fingerprint(result);
-            groups.computeIfAbsent(fingerprint, ignored -> new MutableGroup(result)).addOccurrence(block.timestamp());
+            groups.computeIfAbsent(fingerprint, ignored -> new MutableGroup(result, block.text()))
+                    .addOccurrence(block.timestamp());
             diagnosedEvents.add(new DiagnosedEvent(fingerprint, result.type(), result.severity(), block.timestamp()));
         }
+
+        enrichUnknownGroups(groups);
 
         List<IncidentGroup> incidents = groups.values().stream()
                 .map(MutableGroup::snapshot)
@@ -83,6 +91,14 @@ public final class LogBatchAnalyzer {
                 countLines(log), diagnosedEvents.size(), detectedFailureBlocks, truncated,
                 incidents, investigationOrder, correlations, rootCauseChains, spikes, report
         );
+    }
+
+    private void enrichUnknownGroups(Map<String, MutableGroup> groups) {
+        for (MutableGroup group : groups.values()) {
+            if (!"UNKNOWN".equals(group.sample().status())) continue;
+            var enriched = engine.analyzeStructured(group.representativeLog(), true);
+            if (!"NO_FAILURE".equals(enriched.status())) group.replaceSample(enriched);
+        }
     }
 
     private static List<FailureBlock> splitFailureBlocks(String log) {
@@ -327,11 +343,21 @@ public final class LogBatchAnalyzer {
     }
 
     private static final class MutableGroup {
-        private final DiagnosisEngine.DiagnosisResult sample;
+        private DiagnosisEngine.DiagnosisResult sample;
+        private final String representativeLog;
         private int count;
         private ParsedTimestamp firstSeen;
         private ParsedTimestamp lastSeen;
-        private MutableGroup(DiagnosisEngine.DiagnosisResult sample) { this.sample = sample; }
+
+        private MutableGroup(DiagnosisEngine.DiagnosisResult sample, String representativeLog) {
+            this.sample = sample;
+            this.representativeLog = representativeLog;
+        }
+
+        private DiagnosisEngine.DiagnosisResult sample() { return sample; }
+        private String representativeLog() { return representativeLog; }
+        private void replaceSample(DiagnosisEngine.DiagnosisResult enriched) { this.sample = enriched; }
+
         private void addOccurrence(ParsedTimestamp timestamp) {
             count++;
             if (timestamp == null) return;
@@ -341,6 +367,7 @@ public final class LogBatchAnalyzer {
             Long fromLast = secondsBetween(lastSeen, timestamp);
             if (fromLast == null || fromLast >= 0) lastSeen = timestamp;
         }
+
         private IncidentGroup snapshot() {
             return new IncidentGroup(fingerprint(sample), count, sample.type(), sample.category(), sample.severity(), sample.confidence(),
                     sample.summary(), sample.rootCause(), sample.location(), sample.fixType(), sample.fix(), sample.humanReviewRequired(),
@@ -375,7 +402,8 @@ public final class LogBatchAnalyzer {
         }
         private IncidentSpike detect() {
             if (buckets.size() < 2 || maxMinute <= minMinute) return null;
-            Map.Entry<Long, MinuteBucket> peak = buckets.entrySet().stream().max(Map.Entry.comparingByValue(Comparator.comparingInt(b -> b.count))).orElseThrow();
+            Map.Entry<Long, MinuteBucket> peak = buckets.entrySet().stream()
+                    .max(Map.Entry.comparingByValue(Comparator.comparingInt(b -> b.count))).orElseThrow();
             long spanMinutes = maxMinute - minMinute + 1;
             double baseline = total / (double) spanMinutes;
             double multiplier = baseline == 0 ? 0 : peak.getValue().count / baseline;
