@@ -2,7 +2,7 @@ package io.github.mathias82.logdoctor.core;
 
 public abstract class Incident {
 
-    public String evidence;
+    private String evidence;
     private String component;
 
     public abstract String type();
@@ -18,8 +18,16 @@ public abstract class Incident {
         this.evidence = evidence;
     }
 
+    public String evidence() {
+        return evidence;
+    }
+
     public void setComponent(String component) {
         this.component = component;
+    }
+
+    public String component() {
+        return component != null ? component : "Unknown";
     }
 
     public String format() {
@@ -49,7 +57,7 @@ public abstract class Incident {
                 category(),
                 severity(),
                 confidence(),
-                component != null ? component : "Unknown",
+                component(),
                 summary(),
                 rootCause(),
                 recommendation(),
