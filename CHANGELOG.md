@@ -2,6 +2,19 @@
 
 All notable changes to Log Doctor will be documented in this file.
 
+## [0.4.1] - 2026-09-01
+
+### Changed
+
+- Maven Central publishing now uses the same GitHub Actions secret names as `spring-kafka-contract-starter`: `MAVEN_USERNAME`, `MAVEN_PASSWORD`, `MAVEN_GPG_PRIVATE_KEY`, and `MAVEN_GPG_PASSPHRASE`
+- GPG signing uses non-interactive batch/loopback arguments compatible with GitHub Actions
+- release documentation and Maven coordinates now target `0.4.1`
+
+### Fixed
+
+- fixes the failed `0.4.0` publishing attempt where Log Doctor expected different secret names and therefore received empty Maven/GPG credentials
+- fixes release version/tag alignment so the Maven Central workflow can verify `v0.4.1` against `pom.xml` version `0.4.1`
+
 ## [0.4.0] - 2026-09-01
 
 ### Added
