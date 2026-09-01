@@ -88,6 +88,23 @@ class LogBatchAnalyzerTest {
     }
 
     @Test
+    void cleanTimestampedLogDoesNotCreateSyntheticFailureBlock() {
+        String log = """
+                2026-09-01 14:32:17 INFO application started
+                2026-09-01 14:32:18 DEBUG cache warmed
+                2026-09-01 14:32:19 WARN slow request but recovered
+                """;
+
+        var result = analyzer.analyze(log);
+
+        assertThat(result.detectedFailureBlocks()).isZero();
+        assertThat(result.failureBlocks()).isZero();
+        assertThat(result.uniqueIncidents()).isZero();
+        assertThat(result.incidents()).isEmpty();
+        assertThat(result.truncated()).isFalse();
+    }
+
+    @Test
     void reportsDetectedBlocksBeyondProcessingCapAsTruncated() {
         StringBuilder log = new StringBuilder();
         for (int i = 0; i < LogBatchAnalyzer.MAX_INCIDENT_BLOCKS + 1; i++) {
@@ -120,6 +137,41 @@ class LogBatchAnalyzerTest {
         assertThat(result.failureBlocks()).isEqualTo(1);
         assertThat(result.correlations()).isEmpty();
         assertThat(result.rootCauseChains()).isEmpty();
+    }
+
+    @Test
+    void keepsChronologicalFirstAndLastSeenForOutOfOrderOccurrences() {
+        String log = """
+                2026-09-01 14:32:30 ERROR request failed
+                java.lang.RuntimeException: boom
+                2026-09-01 14:32:10 ERROR request failed
+                java.lang.RuntimeException: boom
+                2026-09-01 14:32:20 ERROR request failed
+                java.lang.RuntimeException: boom
+                """;
+
+        var result = analyzer.analyze(log);
+        var incident = result.incidents().getFirst();
+
+        assertThat(incident.firstSeen()).isEqualTo("2026-09-01 14:32:10");
+        assertThat(incident.lastSeen()).isEqualTo("2026-09-01 14:32:30");
+    }
+
+    @Test
+    void doesNotOverwriteTimelineWithIncomparableTimestampBasis() {
+        String log = """
+                2026-09-01T12:32:17Z ERROR request failed
+                java.lang.RuntimeException: boom
+                2026-09-01 15:32:20 ERROR request failed
+                java.lang.RuntimeException: boom
+                """;
+
+        var result = analyzer.analyze(log);
+        var incident = result.incidents().getFirst();
+
+        assertThat(incident.firstSeen()).isEqualTo("2026-09-01T12:32:17Z");
+        assertThat(incident.lastSeen()).isEqualTo("2026-09-01T12:32:17Z");
+        assertThat(result.correlations()).isEmpty();
     }
 
     @Test

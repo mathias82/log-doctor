@@ -127,7 +127,7 @@ public final class LogBatchAnalyzer {
             }
         }
         if (current != null && !current.isEmpty()) blocks.add(new FailureBlock(current.toString(), currentTimestamp));
-        return blocks.isEmpty() ? List.of(new FailureBlock(log, parseTimestamp(log))) : blocks;
+        return blocks;
     }
 
     private static boolean looksLikeFailureStart(String line) {
@@ -151,7 +151,7 @@ public final class LogBatchAnalyzer {
         if (parseTimestamp(line) == null || looksLikeContinuation(line)) return false;
         String level = logLevel(line);
         return "TRACE".equals(level) || "DEBUG".equals(level) || "INFO".equals(level)
-                || "WARN".equals(level) || "WARNING".equals(level);
+                || "WARN".equals(level);
     }
 
     private static String logLevel(String line) {
@@ -363,7 +363,7 @@ public final class LogBatchAnalyzer {
             Long fromFirst = secondsBetween(firstSeen, timestamp);
             if (fromFirst != null && fromFirst < 0) firstSeen = timestamp;
             Long fromLast = secondsBetween(lastSeen, timestamp);
-            if (fromLast == null || fromLast >= 0) lastSeen = timestamp;
+            if (fromLast != null && fromLast >= 0) lastSeen = timestamp;
         }
 
         private IncidentGroup snapshot() {
