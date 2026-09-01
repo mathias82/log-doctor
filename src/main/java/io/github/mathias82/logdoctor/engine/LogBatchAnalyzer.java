@@ -4,7 +4,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -26,8 +28,12 @@ public final class LogBatchAnalyzer {
             "\\b(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:Z|[+-]\\d{2}:?\\d{2}))\\b");
     private static final Pattern LOCAL_TIMESTAMP = Pattern.compile(
             "\\b(\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:[.,]\\d{1,9})?)\\b");
-    private static final DateTimeFormatter LOCAL_SPACE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]");
-    private static final DateTimeFormatter LOCAL_COMMA = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[,SSSSSSSSS]");
+    private static final DateTimeFormatter LOCAL_TIMESTAMP_FORMATTER = new DateTimeFormatterBuilder()
+            .appendPattern("yyyy-MM-dd HH:mm:ss")
+            .optionalStart()
+            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+            .optionalEnd()
+            .toFormatter();
 
     private final DiagnosisEngine engine;
 
@@ -76,18 +82,23 @@ public final class LogBatchAnalyzer {
         ParsedTimestamp currentTimestamp = null;
 
         for (String line : lines) {
-            if (looksLikeFailureStart(line)) {
-                if (current != null && !current.isEmpty()) {
-                    blocks.add(new FailureBlock(current.toString(), currentTimestamp));
+            if (current == null) {
+                if (looksLikeFailureStart(line)) {
+                    current = new StringBuilder(line);
+                    currentTimestamp = parseTimestamp(line);
                 }
+                continue;
+            }
+
+            if (looksLikeTopLevelFailureStart(line)) {
+                blocks.add(new FailureBlock(current.toString(), currentTimestamp));
                 current = new StringBuilder(line);
                 currentTimestamp = parseTimestamp(line);
-            } else if (current != null) {
-                if (looksLikeContinuation(line) || !line.isBlank()) {
-                    current.append(System.lineSeparator()).append(line);
-                }
+            } else if (looksLikeContinuation(line) || !line.isBlank()) {
+                current.append(System.lineSeparator()).append(line);
             }
         }
+
         if (current != null && !current.isEmpty()) {
             blocks.add(new FailureBlock(current.toString(), currentTimestamp));
         }
@@ -97,14 +108,22 @@ public final class LogBatchAnalyzer {
 
     private static boolean looksLikeFailureStart(String line) {
         String lower = line.toLowerCase(Locale.ROOT);
-        return lower.contains(" exception")
+        return looksLikeTopLevelFailureStart(line)
+                || lower.contains(" exception")
                 || lower.startsWith("exception")
-                || lower.contains("error ")
-                || lower.startsWith("error")
                 || lower.contains("caused by:")
                 || lower.contains("outofmemoryerror")
-                || lower.contains("timeout")
+                || lower.contains("sockettimeoutexception")
                 || lower.contains("deadlock");
+    }
+
+    private static boolean looksLikeTopLevelFailureStart(String line) {
+        String lower = line.toLowerCase(Locale.ROOT);
+        boolean explicitLevel = lower.startsWith("error")
+                || lower.startsWith("fatal")
+                || lower.contains(" error ")
+                || lower.contains(" fatal ");
+        return explicitLevel || (parseTimestamp(line) != null && (lower.contains("error") || lower.contains("fatal")));
     }
 
     private static boolean looksLikeContinuation(String line) {
@@ -131,10 +150,9 @@ public final class LogBatchAnalyzer {
         Matcher localMatcher = LOCAL_TIMESTAMP.matcher(text);
         if (localMatcher.find()) {
             String raw = localMatcher.group(1);
-            String normalized = raw.replace('T', ' ');
+            String normalized = raw.replace('T', ' ').replace(',', '.');
             try {
-                DateTimeFormatter formatter = normalized.contains(",") ? LOCAL_COMMA : LOCAL_SPACE;
-                return new ParsedTimestamp(raw, LocalDateTime.parse(normalized, formatter));
+                return new ParsedTimestamp(raw, LocalDateTime.parse(normalized, LOCAL_TIMESTAMP_FORMATTER));
             } catch (DateTimeParseException ignored) {
                 return new ParsedTimestamp(raw, null);
             }
@@ -143,9 +161,7 @@ public final class LogBatchAnalyzer {
     }
 
     private static String normalizeOffset(String raw) {
-        if (raw.endsWith("Z") || raw.matches(".*[+-]\\d{2}:\\d{2}$")) {
-            return raw;
-        }
+        if (raw.endsWith("Z") || raw.matches(".*[+-]\\d{2}:\\d{2}$")) return raw;
         return raw.replaceFirst("([+-]\\d{2})(\\d{2})$", "$1:$2");
     }
 
@@ -181,17 +197,15 @@ public final class LogBatchAnalyzer {
     }
 
     private static List<IncidentCorrelation> correlations(List<DiagnosedEvent> events) {
-        Map<String, MutableCorrelation> correlations = new LinkedHashMap<>();
+        Map<String, MutableCorrelation> found = new LinkedHashMap<>();
         for (int i = 0; i < events.size() - 1; i++) {
             DiagnosedEvent first = events.get(i);
             DiagnosedEvent second = events.get(i + 1);
-            if (first.fingerprint().equals(second.fingerprint()) || !withinCorrelationWindow(first, second)) {
-                continue;
-            }
+            if (first.fingerprint().equals(second.fingerprint()) || !withinCorrelationWindow(first, second)) continue;
             String key = first.fingerprint() + "->" + second.fingerprint();
-            correlations.computeIfAbsent(key, ignored -> new MutableCorrelation(first.type(), second.type())).increment();
+            found.computeIfAbsent(key, ignored -> new MutableCorrelation(first.type(), second.type())).increment();
         }
-        return correlations.values().stream()
+        return found.values().stream()
                 .map(MutableCorrelation::snapshot)
                 .sorted(Comparator.comparingInt(IncidentCorrelation::occurrences).reversed())
                 .limit(10)
@@ -223,9 +237,7 @@ public final class LogBatchAnalyzer {
         private String firstSeen;
         private String lastSeen;
 
-        private MutableGroup(DiagnosisEngine.DiagnosisResult sample) {
-            this.sample = sample;
-        }
+        private MutableGroup(DiagnosisEngine.DiagnosisResult sample) { this.sample = sample; }
 
         private void addOccurrence(ParsedTimestamp timestamp) {
             count++;
@@ -256,7 +268,8 @@ public final class LogBatchAnalyzer {
         private void increment() { occurrences++; }
 
         private IncidentCorrelation snapshot() {
-            return new IncidentCorrelation(fromType, toType, occurrences, "Observed consecutively within the correlation window");
+            return new IncidentCorrelation(fromType, toType, occurrences,
+                    "Observed consecutively within " + CORRELATION_WINDOW_SECONDS + " seconds when timestamps are available");
         }
     }
 
