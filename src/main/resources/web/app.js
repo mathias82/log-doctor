@@ -1,123 +1,13 @@
-const logInput = document.getElementById('logInput');
-const fileInput = document.getElementById('fileInput');
-const dropzone = document.getElementById('dropzone');
-const analyzeBtn = document.getElementById('analyzeBtn');
-const clearBtn = document.getElementById('clearBtn');
-const copyBtn = document.getElementById('copyBtn');
-const meta = document.getElementById('meta');
-const emptyState = document.getElementById('emptyState');
-const resultState = document.getElementById('resultState');
-const loadingState = document.getElementById('loadingState');
-const diagnosisOutput = document.getElementById('diagnosisOutput');
-const resultBadge = document.getElementById('resultBadge');
-const modeValue = document.getElementById('modeValue');
-const safetyValue = document.getElementById('safetyValue');
-
-function updateMeta() {
-  const value = logInput.value;
-  const lines = value ? value.split(/\r?\n/).length : 0;
-  meta.textContent = `${lines.toLocaleString()} lines · ${(new Blob([value]).size / 1024).toFixed(1)} KB`;
-}
-
-function setState(state) {
-  emptyState.classList.toggle('hidden', state !== 'empty');
-  resultState.classList.toggle('hidden', state !== 'result');
-  loadingState.classList.toggle('hidden', state !== 'loading');
-}
-
-function classifyDiagnosis(text) {
-  const lower = text.toLowerCase();
-  const usesLlm = lower.includes('llm analysis:');
-  const requiresHuman = lower.includes('human investigation required');
-
-  modeValue.textContent = usesLlm ? 'Rules + local LLM' : 'Deterministic rules';
-  safetyValue.textContent = requiresHuman ? 'Human review required' : 'Safe remediation available';
-  resultBadge.textContent = requiresHuman ? 'Review' : 'Diagnosed';
-  resultBadge.className = `badge ${requiresHuman ? 'warn' : 'good'}`;
-}
-
-async function analyze() {
-  const log = logInput.value.trim();
-  if (!log) {
-    resultBadge.textContent = 'Add logs';
-    resultBadge.className = 'badge warn';
-    logInput.focus();
-    return;
-  }
-
-  analyzeBtn.disabled = true;
-  resultBadge.textContent = 'Analyzing';
-  resultBadge.className = 'badge neutral';
-  setState('loading');
-
-  try {
-    const response = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ log })
-    });
-
-    const payload = await response.json();
-    if (!response.ok) {
-      throw new Error(payload.detail || payload.error || 'Analysis failed');
-    }
-
-    diagnosisOutput.textContent = payload.diagnosis;
-    classifyDiagnosis(payload.diagnosis);
-    setState('result');
-  } catch (error) {
-    diagnosisOutput.textContent = `Analysis failed\n\n${error.message}`;
-    modeValue.textContent = 'Unavailable';
-    safetyValue.textContent = 'No change applied';
-    resultBadge.textContent = 'Error';
-    resultBadge.className = 'badge bad';
-    setState('result');
-  } finally {
-    analyzeBtn.disabled = false;
-  }
-}
-
-async function readFile(file) {
-  if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    resultBadge.textContent = 'File too large';
-    resultBadge.className = 'badge bad';
-    return;
-  }
-  logInput.value = await file.text();
-  updateMeta();
-}
-
-logInput.addEventListener('input', updateMeta);
-analyzeBtn.addEventListener('click', analyze);
-clearBtn.addEventListener('click', () => {
-  logInput.value = '';
-  fileInput.value = '';
-  diagnosisOutput.textContent = '';
-  resultBadge.textContent = 'Ready';
-  resultBadge.className = 'badge neutral';
-  updateMeta();
-  setState('empty');
-});
-copyBtn.addEventListener('click', async () => {
-  await navigator.clipboard.writeText(diagnosisOutput.textContent);
-  copyBtn.textContent = 'Copied';
-  setTimeout(() => copyBtn.textContent = 'Copy diagnosis', 1200);
-});
-fileInput.addEventListener('change', event => readFile(event.target.files[0]));
-
-['dragenter', 'dragover'].forEach(name => dropzone.addEventListener(name, event => {
-  event.preventDefault();
-  dropzone.classList.add('dragging');
-}));
-['dragleave', 'drop'].forEach(name => dropzone.addEventListener(name, event => {
-  event.preventDefault();
-  dropzone.classList.remove('dragging');
-}));
-dropzone.addEventListener('drop', event => readFile(event.dataTransfer.files[0]));
-
-document.addEventListener('keydown', event => {
-  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') analyze();
-});
-
-updateMeta();
+const $=id=>document.getElementById(id);const logInput=$('logInput'),fileInput=$('fileInput'),dropzone=$('dropzone'),analyzeBtn=$('analyzeBtn'),resultBadge=$('resultBadge');
+const HISTORY_KEY='logDoctor.history.v1';
+function updateMeta(){const v=logInput.value,l=v?v.split(/\r?\n/).length:0;$('meta').textContent=`${l.toLocaleString()} lines · ${(new Blob([v]).size/1024).toFixed(1)} KB`}
+function setState(s){$('emptyState').classList.toggle('hidden',s!=='empty');$('resultState').classList.toggle('hidden',s!=='result');$('loadingState').classList.toggle('hidden',s!=='loading')}
+function tone(v){v=(v||'').toUpperCase();return v==='CRITICAL'||v==='ERROR'?'bad':v==='HIGH'||v==='MEDIUM'?'warn':v==='NONE'?'neutral':'good'}
+function render(p){$('severityValue').textContent=p.severity;$('confidenceValue').textContent=p.confidence;$('categoryValue').textContent=p.category;$('modeValue').textContent=p.llmUsed?'Rules + local LLM':'Deterministic rules';$('summaryValue').textContent=p.summary;$('rootCauseValue').textContent=p.rootCause;$('locationValue').textContent=p.location+(p.failureLine?`\nFailure line: ${p.failureLine}`:'');$('fixTypeValue').textContent=p.fixType;$('fixTypeValue').className=`badge ${p.humanReviewRequired?'warn':'good'}`;$('fixValue').textContent=p.fix+(p.llmUsed?'\n\nLocal LLM reasoning was used for this diagnosis.':'');$('evidenceValue').textContent=p.evidence;$('diagnosisOutput').textContent=p.diagnosis;resultBadge.textContent=p.humanReviewRequired?'Review':p.status==='NO_FAILURE'?'Clear':'Diagnosed';resultBadge.className=`badge ${p.humanReviewRequired?'warn':tone(p.severity)}`;setState('result')}
+function history(){try{return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]')}catch{return[]}}
+function saveHistory(p){const items=history();items.unshift({at:new Date().toISOString(),type:p.type,category:p.category,severity:p.severity,summary:p.summary,human:p.humanReviewRequired});localStorage.setItem(HISTORY_KEY,JSON.stringify(items.slice(0,10)));renderHistory()}
+function renderHistory(){const items=history(),el=$('historyList');if(!items.length){el.innerHTML='<p class="muted">No analyses yet.</p>';return}el.innerHTML=items.map(i=>`<div class="history-item"><div><strong>${escapeHtml(i.type)}</strong><p>${escapeHtml(i.summary)}</p></div><div class="history-meta"><span class="badge ${i.human?'warn':tone(i.severity)}">${escapeHtml(i.severity)}</span><span>${new Date(i.at).toLocaleString()}</span></div></div>`).join('')}
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function analyze(){const log=logInput.value.trim();if(!log){resultBadge.textContent='Add logs';resultBadge.className='badge warn';logInput.focus();return}analyzeBtn.disabled=true;resultBadge.textContent='Analyzing';resultBadge.className='badge neutral';setState('loading');try{const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({log})}),p=await r.json();if(!r.ok)throw new Error(p.detail||p.error||'Analysis failed');render(p);saveHistory(p)}catch(e){resultBadge.textContent='Error';resultBadge.className='badge bad';$('summaryValue').textContent='Analysis failed';$('diagnosisOutput').textContent=e.message;setState('result')}finally{analyzeBtn.disabled=false}}
+async function readFile(f){if(!f)return;if(f.size>5*1024*1024){resultBadge.textContent='File too large';resultBadge.className='badge bad';return}logInput.value=await f.text();updateMeta()}
+logInput.addEventListener('input',updateMeta);analyzeBtn.addEventListener('click',analyze);$('clearBtn').addEventListener('click',()=>{logInput.value='';fileInput.value='';resultBadge.textContent='Ready';resultBadge.className='badge neutral';updateMeta();setState('empty')});$('copyBtn').addEventListener('click',async()=>{await navigator.clipboard.writeText($('diagnosisOutput').textContent);$('copyBtn').textContent='Copied';setTimeout(()=>$('copyBtn').textContent='Copy diagnosis',1200)});$('clearHistoryBtn').addEventListener('click',()=>{localStorage.removeItem(HISTORY_KEY);renderHistory()});fileInput.addEventListener('change',e=>readFile(e.target.files[0]));['dragenter','dragover'].forEach(n=>dropzone.addEventListener(n,e=>{e.preventDefault();dropzone.classList.add('dragging')}));['dragleave','drop'].forEach(n=>dropzone.addEventListener(n,e=>{e.preventDefault();dropzone.classList.remove('dragging')}));dropzone.addEventListener('drop',e=>readFile(e.dataTransfer.files[0]));document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='Enter')analyze()});updateMeta();renderHistory();
