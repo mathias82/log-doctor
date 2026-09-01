@@ -5,7 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mathias82.logdoctor.core.Incident;
 import io.github.mathias82.logdoctor.core.IncidentCategory;
 import io.github.mathias82.logdoctor.engine.LogRedactor;
-import okhttp3.*;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 import java.time.Duration;
 import java.util.Map;
@@ -14,6 +19,7 @@ public class OllamaLlmClient implements LlmClient {
 
     private static final String API_URL = "http://localhost:11434/api/generate";
     private static final String MODEL = "qwen2.5:3b";
+    private static final MediaType JSON = MediaType.get("application/json");
 
     private final OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -48,23 +54,27 @@ public class OllamaLlmClient implements LlmClient {
                     )
             );
 
-            RequestBody body = RequestBody.create(
-                    mapper.writeValueAsString(payload),
-                    MediaType.parse("application/json")
-            );
-
-            Request request = new Request.Builder()
-                    .url(API_URL)
-                    .post(body)
-                    .build();
+            RequestBody body = RequestBody.create(mapper.writeValueAsString(payload), JSON);
+            Request request = new Request.Builder().url(API_URL).post(body).build();
 
             try (Response response = client.newCall(request).execute()) {
-                String json = response.body().string();
-                return mapper.readValue(json, OllamaResponse.class).response();
+                if (!response.isSuccessful()) {
+                    throw new IllegalStateException("Ollama returned HTTP " + response.code());
+                }
+                ResponseBody responseBody = response.body();
+                if (responseBody == null) {
+                    throw new IllegalStateException("Ollama returned an empty response body");
+                }
+                OllamaResponse parsed = mapper.readValue(responseBody.string(), OllamaResponse.class);
+                if (parsed.response() == null || parsed.response().isBlank()) {
+                    throw new IllegalStateException("Ollama returned no analysis");
+                }
+                return parsed.response().trim();
             }
-
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
-            return "LLM analysis failed: " + e.getMessage();
+            throw new IllegalStateException("Local Ollama analysis is unavailable", e);
         }
     }
 
