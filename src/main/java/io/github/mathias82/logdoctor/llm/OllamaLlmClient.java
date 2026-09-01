@@ -2,9 +2,10 @@ package io.github.mathias82.logdoctor.llm;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.mathias82.logdoctor.core.IncidentCategory;
-import okhttp3.*;
 import io.github.mathias82.logdoctor.core.Incident;
+import io.github.mathias82.logdoctor.core.IncidentCategory;
+import io.github.mathias82.logdoctor.engine.LogRedactor;
+import okhttp3.*;
 
 import java.time.Duration;
 import java.util.Map;
@@ -21,15 +22,16 @@ public class OllamaLlmClient implements LlmClient {
             .build();
 
     private final ObjectMapper mapper = new ObjectMapper();
+    private final LogRedactor redactor = new LogRedactor();
 
     @Override
     public String explainKnownIncident(Incident incident) {
-        return callOllama(LlmPrompts.knownIncidentPrompt(incident));
+        return callOllama(redactor.redact(LlmPrompts.knownIncidentPrompt(incident)));
     }
 
     @Override
     public String analyzeUnknownLog(String rawLog, IncidentCategory category) {
-        return callOllama(LlmPrompts.unknownLogPrompt(rawLog, category));
+        return callOllama(redactor.redact(LlmPrompts.unknownLogPrompt(rawLog, category)));
     }
 
     private String callOllama(String prompt) {
