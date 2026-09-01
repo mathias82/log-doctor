@@ -1,0 +1,51 @@
+name: Docker Stack E2E
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  docker-stack-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      OLLAMA_MODEL: qwen2.5:0.5b
+      LOG_DOCTOR_PORT: 8080
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build and start full stack
+        run: docker compose -f compose.yml up -d --build
+
+      - name: Wait for Log Doctor health
+        run: |
+          for i in {1..90}; do
+            if curl --fail --silent http://localhost:8080/api/health | grep -q '"status":"UP"'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f compose.yml ps
+          docker compose -f compose.yml logs
+          exit 1
+
+      - name: Verify unknown log uses containerized Ollama
+        run: |
+          response=$(curl --fail --silent \
+            -X POST http://localhost:8080/api/analyze/batch \
+            -H 'Content-Type: application/json' \
+            -d '{"log":"2026-09-01 14:32:17 ERROR request failed\njava.lang.RuntimeException: unusual distributed state transition\n    at com.acme.WorkflowEngine.advance(WorkflowEngine.java:87)"}')
+          echo "$response"
+          echo "$response" | grep -q '"uniqueIncidents":1'
+          echo "$response" | grep -q '"llmUsed":true'
+
+      - name: Show diagnostics
+        if: always()
+        run: docker compose -f compose.yml ps && docker compose -f compose.yml logs --no-color
+
+      - name: Stop full stack
+        if: always()
+        run: docker compose -f compose.yml down -v --remove-orphans

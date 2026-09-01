@@ -1,0 +1,44 @@
+services:
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+
+  ollama-model:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "ollama pull ${OLLAMA_MODEL:-qwen2.5:3b}"
+    restart: "no"
+
+  log-doctor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      ollama-model:
+        condition: service_completed_successfully
+    environment:
+      LOG_DOCTOR_BIND_ADDRESS: 0.0.0.0
+      LOG_DOCTOR_OLLAMA_URL: http://ollama:11434
+      LOG_DOCTOR_OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+    ports:
+      - "${LOG_DOCTOR_PORT:-8080}:8080"
+    restart: unless-stopped
+
+volumes:
+  ollama-data:

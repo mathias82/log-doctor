@@ -25,19 +25,27 @@ public final class LogDoctorWebServer {
     private LogDoctorWebServer() {}
 
     public static HttpServer start(int port) {
-        return start(port, new DiagnosisEngine());
+        return start("127.0.0.1", port, new DiagnosisEngine());
+    }
+
+    public static HttpServer start(String host, int port) {
+        return start(host, port, new DiagnosisEngine());
     }
 
     static HttpServer start(int port, DiagnosisEngine engine) {
+        return start("127.0.0.1", port, engine);
+    }
+
+    static HttpServer start(String host, int port, DiagnosisEngine engine) {
         try {
-            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+            HttpServer server = HttpServer.create(new InetSocketAddress(host, port), 0);
             server.createContext("/api/analyze", exchange -> handleAnalyze(exchange, engine));
             server.createContext("/api/analyze/batch", exchange -> handleBatchAnalyze(exchange, engine));
             server.createContext("/api/health", LogDoctorWebServer::handleHealth);
             server.createContext("/", LogDoctorWebServer::handleStatic);
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.start();
-            System.out.printf("Log Doctor Web UI running at http://localhost:%d%n", server.getAddress().getPort());
+            System.out.printf("Log Doctor Web UI listening on http://%s:%d%n", host, server.getAddress().getPort());
             System.out.println("Logs stay local; analysis uses the configured local Ollama instance.");
             return server;
         } catch (IOException e) {

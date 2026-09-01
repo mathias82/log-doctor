@@ -23,6 +23,26 @@ class LogDoctorApplicationTest {
     }
 
     @Test
+    void parsesSeparateHostArgument() {
+        assertThat(LogDoctorApplication.resolveBindAddress(new String[]{"--web", "--host", "0.0.0.0"}))
+                .isEqualTo("0.0.0.0");
+    }
+
+    @Test
+    void parsesInlineHostArgument() {
+        assertThat(LogDoctorApplication.resolveBindAddress(new String[]{"--web", "--host=127.0.0.1"}))
+                .isEqualTo("127.0.0.1");
+    }
+
+    @Test
+    void rejectsMissingOrBlankHost() {
+        assertThatThrownBy(() -> LogDoctorApplication.resolveBindAddress(new String[]{"--web", "--host"}))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> LogDoctorApplication.resolveBindAddress(new String[]{"--web", "--host="}))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void rejectsInvalidPorts() {
         assertThatThrownBy(() -> LogDoctorApplication.resolveWebPort(new String[]{"--web", "--port", "0"}))
                 .isInstanceOf(IllegalArgumentException.class);
