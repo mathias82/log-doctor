@@ -220,6 +220,32 @@ Before log context reaches the local LLM boundary, Log Doctor performs determini
 
 Redaction is a defense-in-depth measure, not a guarantee that every possible secret format will be detected.
 
+## Maven Central
+
+The project is configured for Maven Central publishing with these coordinates:
+
+```xml
+<dependency>
+    <groupId>io.github.mathias82</groupId>
+    <artifactId>log-doctor</artifactId>
+    <version>0.3.0</version>
+</dependency>
+```
+
+The dependency becomes resolvable from Maven Central only after the corresponding version has been successfully published. Release publishing is intentionally separate from normal CI.
+
+Publishing uses the Sonatype Central Publisher Portal and the `central-publishing-maven-plugin`. The `central` Maven profile also attaches source and Javadoc JARs and signs release artifacts with GPG. A pushed release tag such as `v0.3.0` triggers `.github/workflows/publish-maven-central.yml`, verifies that the tag matches the POM version, runs the test suite, and then publishes the signed bundle.
+
+Before the first publish, the repository owner must complete the one-time publisher setup:
+
+1. create/sign in to the Sonatype Central Publisher Portal and verify the `io.github.mathias82` namespace;
+2. generate a Central Portal user token;
+3. configure a GPG signing key whose public key is available to signature-verification infrastructure;
+4. add these GitHub Actions repository secrets: `CENTRAL_USERNAME`, `CENTRAL_PASSWORD`, `GPG_PRIVATE_KEY`, and `GPG_PASSPHRASE`;
+5. merge the publishing configuration, verify `main`, then create the version tag only when the release is ready to be immutable.
+
+Do not reuse a published Maven Central version: Central releases are immutable. Increment the project version for every subsequent release.
+
 ## Build and test
 
 Requirements:
