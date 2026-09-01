@@ -53,7 +53,7 @@ public final class LogBatchAnalyzer {
 
     public BatchDiagnosisResult analyze(String log) {
         if (log == null || log.isBlank()) {
-            return new BatchDiagnosisResult(0, 0, 0, false, List.of(), List.of(), List.of(), List.of(), List.of(), emptyReport());
+            return new BatchDiagnosisResult(0, 0, 0, false, 0, List.of(), List.of(), List.of(), List.of(), List.of(), emptyReport());
         }
 
         List<FailureBlock> blocks = splitFailureBlocks(log);
@@ -87,7 +87,7 @@ public final class LogBatchAnalyzer {
         );
 
         return new BatchDiagnosisResult(
-                countLines(log), diagnosedEvents.size(), detectedFailureBlocks, truncated,
+                countLines(log), diagnosedEvents.size(), detectedFailureBlocks, truncated, incidents.size(),
                 incidents, investigationOrder, correlations, rootCauseChains, spikes, report
         );
     }
@@ -435,13 +435,14 @@ public final class LogBatchAnalyzer {
             int failureBlocks,
             int detectedFailureBlocks,
             boolean truncated,
+            int uniqueIncidents,
             List<IncidentGroup> incidents,
             List<String> investigationOrder,
             List<IncidentCorrelation> correlations,
             List<RootCauseChain> rootCauseChains,
             List<IncidentSpike> spikes,
             String reportMarkdown
-    ) { public int uniqueIncidents() { return incidents.size(); } }
+    ) {}
 
     public record IncidentGroup(
             String fingerprint, int count, String type, String category, String severity, String confidence,
