@@ -83,7 +83,7 @@ public class DiagnosisEngine {
                     failure.rootCause().lineNumber(),
                     location,
                     "CONCURRENCY_FAILURE",
-                    IncidentCategory.APPLICATION.name(),
+                    "APPLICATION",
                     "Concurrency / data consistency failure",
                     "Concurrency / data consistency failure detected in application layer",
                     contextText
@@ -95,7 +95,7 @@ public class DiagnosisEngine {
                     failure.rootCause().lineNumber(),
                     location,
                     "BUSINESS_INVARIANT",
-                    IncidentCategory.APPLICATION.name(),
+                    "APPLICATION",
                     "Domain state machine violation",
                     "Domain state machine / business invariant violation",
                     contextText
