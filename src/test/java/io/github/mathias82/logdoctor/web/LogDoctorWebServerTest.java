@@ -50,17 +50,44 @@ class LogDoctorWebServerTest {
     }
 
     @Test
-    void analyzeReturnsStructuredJson() throws Exception {
-        var request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/analyze"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString("{\"log\":\"INFO application started\"}"))
+    void healthRejectsUnsupportedMethodAndReturnsAllowHeader() throws Exception {
+        var request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/health"))
+                .POST(HttpRequest.BodyPublishers.noBody())
                 .build();
 
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
+        assertThat(response.statusCode()).isEqualTo(405);
+        assertThat(response.headers().firstValue("Allow")).contains("GET");
+    }
+
+    @Test
+    void analyzeReturnsStructuredJson() throws Exception {
+        var response = analyze("INFO application started");
+
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body()).contains("\"status\":\"NO_FAILURE\"");
         assertThat(response.body()).contains("\"llmUsed\":false");
+    }
+
+    @Test
+    void analyzeAcceptsLogAtFiveMegabyteBoundaryDespiteJsonEnvelope() throws Exception {
+        String log = "x".repeat(LogDoctorWebServer.MAX_LOG_BYTES);
+
+        var response = analyze(log);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("\"status\":\"NO_FAILURE\"");
+    }
+
+    @Test
+    void analyzeRejectsLogOverFiveMegabytes() throws Exception {
+        String log = "x".repeat(LogDoctorWebServer.MAX_LOG_BYTES + 1);
+
+        var response = analyze(log);
+
+        assertThat(response.statusCode()).isEqualTo(413);
+        assertThat(response.body()).contains("5 MB limit");
     }
 
     @Test
@@ -88,6 +115,14 @@ class LogDoctorWebServerTest {
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.body()).contains("Invalid JSON request");
         assertThat(response.body()).doesNotContain("JsonParseException");
+    }
+
+    private HttpResponse<String> analyze(String log) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/analyze"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"log\":\"" + log + "\"}"))
+                .build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private static final class StubLlmClient implements LlmClient {
