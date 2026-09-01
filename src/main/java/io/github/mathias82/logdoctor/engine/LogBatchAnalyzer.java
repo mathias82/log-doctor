@@ -36,7 +36,6 @@ public final class LogBatchAnalyzer {
             "\\b(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:Z|[+-]\\d{2}:?\\d{2}))\\b");
     private static final Pattern LOCAL_TIMESTAMP = Pattern.compile(
             "\\b(\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:[.,]\\d{1,9})?)\\b");
-    private static final Pattern LOG_LEVEL = Pattern.compile("(?i)\\b(TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL)\\b");
     private static final Pattern UUID = Pattern.compile(
             "(?i)\\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\b");
     private static final DateTimeFormatter LOCAL_TIMESTAMP_FORMATTER = new DateTimeFormatterBuilder()
@@ -156,8 +155,7 @@ public final class LogBatchAnalyzer {
     }
 
     private static String logLevel(String line) {
-        Matcher matcher = LOG_LEVEL.matcher(line);
-        return matcher.find() ? matcher.group(1).toUpperCase(Locale.ROOT) : null;
+        return LogLevelParser.parse(line);
     }
 
     private static boolean looksLikeContinuation(String line) {
