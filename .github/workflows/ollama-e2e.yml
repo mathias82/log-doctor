@@ -1,0 +1,68 @@
+name: Ollama E2E
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'compose.ollama.yml'
+      - 'pom.xml'
+      - 'src/main/java/io/github/mathias82/logdoctor/llm/**'
+      - 'src/main/java/io/github/mathias82/logdoctor/engine/**'
+      - 'src/main/java/io/github/mathias82/logdoctor/web/**'
+      - 'src/test/java/io/github/mathias82/logdoctor/web/*IT.java'
+      - '.github/workflows/ollama-e2e.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ollama-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OLLAMA_MODEL: qwen2.5:0.5b
+      LOG_DOCTOR_OLLAMA_MODEL: qwen2.5:0.5b
+      LOG_DOCTOR_OLLAMA_URL: http://localhost:11434
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Start Ollama and pull integration model
+        run: docker compose -f compose.ollama.yml up -d
+
+      - name: Wait for model to be ready
+        shell: bash
+        run: |
+          for attempt in {1..90}; do
+            if curl --fail --silent http://localhost:11434/api/tags | grep -q 'qwen2.5:0.5b'; then
+              echo 'Ollama model is ready.'
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Timed out waiting for Ollama model.' >&2
+          docker compose -f compose.ollama.yml ps -a
+          docker compose -f compose.ollama.yml logs
+          exit 1
+
+      - name: Run real Ollama end-to-end test
+        run: mvn --batch-mode --no-transfer-progress -Pollama-it verify
+
+      - name: Show Ollama diagnostics
+        if: always()
+        run: |
+          docker compose -f compose.ollama.yml ps -a
+          docker compose -f compose.ollama.yml logs --tail=200
+
+      - name: Stop Ollama
+        if: always()
+        run: docker compose -f compose.ollama.yml down -v
