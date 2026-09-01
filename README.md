@@ -49,6 +49,7 @@ Production logs are noisy, repeated failures hide the signal, root causes are bu
 - deterministic redaction before log context reaches the local LLM boundary
 - policy-driven fix types and explicit human-review decisions
 - local Ollama assistance for unknown or ambiguous failures
+- Docker Compose bootstrap for a persistent local Ollama model runtime
 - CLI mode plus an embedded web dashboard in the same executable JAR
 - browser-local recent-analysis history; raw logs are not persisted by the server
 - hardened local HTTP API with payload limits, JSON validation and security headers
@@ -155,6 +156,41 @@ http://localhost:11434
 
 Log Doctor does not require a cloud LLM API. If Ollama is unavailable, deterministic diagnosis remains authoritative and unknown incidents fall back safely to human review. In batch mode repeated unknown failures are fingerprinted before model enrichment, so a repeated incident group does not trigger one model request per occurrence.
 
+### Run Ollama with Docker Compose
+
+If you prefer not to install Ollama directly, the repository includes `compose.ollama.yml`. It starts the official Ollama container, persists downloaded models in a named volume, waits for the service to become healthy, and pulls the configured `qwen2.5:3b` model automatically.
+
+```bash
+docker compose -f compose.ollama.yml up -d
+```
+
+Verify that Ollama is reachable from Log Doctor:
+
+```bash
+curl http://localhost:11434/api/tags
+```
+
+Stop the containers while keeping the downloaded model:
+
+```bash
+docker compose -f compose.ollama.yml down
+```
+
+Remove the containers and persisted model data:
+
+```bash
+docker compose -f compose.ollama.yml down -v
+```
+
+The defaults can be overridden without editing the compose file:
+
+```bash
+OLLAMA_MODEL=qwen2.5:7b docker compose -f compose.ollama.yml up -d
+OLLAMA_IMAGE=ollama/ollama:latest docker compose -f compose.ollama.yml up -d
+```
+
+The Log Doctor Java process can continue to run directly on the host because the container exposes Ollama on `localhost:11434`.
+
 ## Analysis flow
 
 ```text
@@ -258,6 +294,7 @@ Requirements:
 
 - JDK 21
 - Maven 3.9+
+- Docker with Compose support when using containerized Ollama
 - Ollama only when exercising LLM-backed analysis
 
 Run the full verification suite:
