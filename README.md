@@ -102,15 +102,15 @@ Requirements: JDK 21, Maven 3.9+, and local Ollama only for LLM-backed analysis.
 
 ```bash
 mvn clean verify
-java -jar target/log-doctor-0.4.1.jar --web
+java -jar target/log-doctor-0.4.2.jar --web
 ```
 
 Default bind: `127.0.0.1:8080`.
 
 ```bash
-java -jar target/log-doctor-0.4.1.jar --web --port 9090
-java -jar target/log-doctor-0.4.1.jar --web --host 0.0.0.0
-LOG_DOCTOR_BIND_ADDRESS=0.0.0.0 java -jar target/log-doctor-0.4.1.jar --web
+java -jar target/log-doctor-0.4.2.jar --web --port 9090
+java -jar target/log-doctor-0.4.2.jar --web --host 0.0.0.0
+LOG_DOCTOR_BIND_ADDRESS=0.0.0.0 java -jar target/log-doctor-0.4.2.jar --web
 ```
 
 Ollama configuration:
@@ -194,7 +194,7 @@ Coordinates for this release:
 <dependency>
     <groupId>io.github.mathias82</groupId>
     <artifactId>log-doctor</artifactId>
-    <version>0.4.1</version>
+    <version>0.4.2</version>
 </dependency>
 ```
 
