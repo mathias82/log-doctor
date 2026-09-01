@@ -112,7 +112,7 @@ public final class LlmPrompts {
                 incident.category(),
                 incident.severity(),
                 incident.rootCause(),
-                incident.evidence,
+                incident.evidence(),
                 allowedFixes,
                 allowedFixes
         );
