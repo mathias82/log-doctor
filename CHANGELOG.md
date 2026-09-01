@@ -2,6 +2,38 @@
 
 All notable changes to Log Doctor will be documented in this file.
 
+## [0.3.0] - 2026-09-01
+
+### Added
+
+- multi-incident log analysis with deterministic failure-block detection
+- incident fingerprinting and grouping for repeated failures
+- per-incident first/last occurrence timeline metadata
+- timestamp-aware likely incident correlations
+- root-cause chain candidate scoring with LOW / MEDIUM / HIGH confidence labels
+- per-minute spike detection with peak counts and baseline multipliers
+- structured Markdown incident reports suitable for investigations and postmortems
+- Web UI download action for generated incident reports
+- prompt-boundary redaction for bearer tokens, JWTs, passwords, API keys, tokens, email addresses and IPv4 addresses
+- batch-analysis metadata for detected blocks and truncation when the 500-block safety cap is reached
+
+### Changed
+
+- uploaded log files are analyzed through `/api/analyze/batch` and rendered as grouped incident dashboards
+- stack-trace parsing keeps nested `Caused by:` sections with the parent failure
+- timestamped INFO/WARN records terminate active failure blocks instead of contaminating incident evidence
+- correlation compares offset timestamps by instant and avoids inferred chains when timestamps are absent
+- incident fingerprints normalize volatile IDs including numbers, hex values and UUIDs
+- Ollama failures now fall back safely instead of being treated as successful LLM diagnoses
+- the executable artifact version is now `0.3.0`
+
+### Security
+
+- sensitive values are redacted before log context reaches the local LLM boundary
+- JSON-style secret assignments and secret query parameters are covered by deterministic redaction
+- IPv4 redaction validates address ranges before replacement
+- the local HTTP server remains bound to `127.0.0.1` by default and retains request-size and content-type validation
+
 ## [0.2.0] - 2026-09-01
 
 ### Added
