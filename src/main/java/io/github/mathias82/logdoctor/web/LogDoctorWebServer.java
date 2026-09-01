@@ -10,12 +10,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executors;
 
 public final class LogDoctorWebServer {
+    static final int MAX_LOG_BYTES = 5 * 1024 * 1024;
+    private static final int JSON_OVERHEAD_BYTES = 64 * 1024;
+    private static final int MAX_REQUEST_BYTES = MAX_LOG_BYTES + JSON_OVERHEAD_BYTES;
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final int MAX_LOG_BYTES = 5 * 1024 * 1024;
 
     private LogDoctorWebServer() {}
 
@@ -27,14 +30,7 @@ public final class LogDoctorWebServer {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
             server.createContext("/api/analyze", exchange -> handleAnalyze(exchange, engine));
-            server.createContext("/api/health", exchange -> {
-                if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-                    exchange.getResponseHeaders().set("Allow", "GET");
-                    writeJson(exchange, 405, Map.of("error", "Method not allowed"));
-                    return;
-                }
-                writeJson(exchange, 200, Map.of("status", "UP"));
-            });
+            server.createContext("/api/health", LogDoctorWebServer::handleHealth);
             server.createContext("/", LogDoctorWebServer::handleStatic);
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.start();
@@ -46,22 +42,32 @@ public final class LogDoctorWebServer {
         }
     }
 
-    private static void handleAnalyze(HttpExchange exchange, DiagnosisEngine engine) throws IOException {
-        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-            exchange.getResponseHeaders().set("Allow", "POST");
-            writeJson(exchange, 405, Map.of("error", "Method not allowed"));
+    private static void handleHealth(HttpExchange exchange) throws IOException {
+        if (!requireMethod(exchange, "GET")) {
             return;
         }
+        writeJson(exchange, 200, Map.of("status", "UP"));
+    }
 
-        String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
-        if (contentType == null || !contentType.toLowerCase().startsWith("application/json")) {
+    private static void handleAnalyze(HttpExchange exchange, DiagnosisEngine engine) throws IOException {
+        if (!requireMethod(exchange, "POST")) {
+            return;
+        }
+        if (!isJsonRequest(exchange)) {
             writeJson(exchange, 415, Map.of("error", "Content-Type must be application/json"));
             return;
         }
+        if (declaredRequestTooLarge(exchange)) {
+            writeJson(exchange, 413, Map.of("error", "Request payload is too large"));
+            return;
+        }
 
-        byte[] requestBytes = exchange.getRequestBody().readNBytes(MAX_LOG_BYTES + 1);
-        if (requestBytes.length > MAX_LOG_BYTES) {
-            writeJson(exchange, 413, Map.of("error", "Log payload exceeds the 5 MB limit"));
+        byte[] requestBytes;
+        try (InputStream requestBody = exchange.getRequestBody()) {
+            requestBytes = requestBody.readNBytes(MAX_REQUEST_BYTES + 1);
+        }
+        if (requestBytes.length > MAX_REQUEST_BYTES) {
+            writeJson(exchange, 413, Map.of("error", "Request payload is too large"));
             return;
         }
 
@@ -71,18 +77,50 @@ public final class LogDoctorWebServer {
                 writeJson(exchange, 400, Map.of("error", "Log content is required"));
                 return;
             }
+            if (request.log().getBytes(StandardCharsets.UTF_8).length > MAX_LOG_BYTES) {
+                writeJson(exchange, 413, Map.of("error", "Log content exceeds the 5 MB limit"));
+                return;
+            }
+
             writeJson(exchange, 200, engine.analyzeStructured(request.log()));
         } catch (JsonProcessingException e) {
             writeJson(exchange, 400, Map.of("error", "Invalid JSON request"));
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             writeJson(exchange, 500, Map.of("error", "Analysis failed"));
         }
     }
 
+    private static boolean requireMethod(HttpExchange exchange, String expectedMethod) throws IOException {
+        if (expectedMethod.equalsIgnoreCase(exchange.getRequestMethod())) {
+            return true;
+        }
+        exchange.getResponseHeaders().set("Allow", expectedMethod);
+        writeJson(exchange, 405, Map.of("error", "Method not allowed"));
+        return false;
+    }
+
+    private static boolean isJsonRequest(HttpExchange exchange) {
+        String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
+        if (contentType == null) {
+            return false;
+        }
+        return contentType.toLowerCase(Locale.ROOT).startsWith("application/json");
+    }
+
+    private static boolean declaredRequestTooLarge(HttpExchange exchange) {
+        String contentLength = exchange.getRequestHeaders().getFirst("Content-Length");
+        if (contentLength == null) {
+            return false;
+        }
+        try {
+            return Long.parseLong(contentLength) > MAX_REQUEST_BYTES;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
     private static void handleStatic(HttpExchange exchange) throws IOException {
-        if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-            exchange.getResponseHeaders().set("Allow", "GET");
-            writeText(exchange, 405, "Method not allowed", "text/plain; charset=utf-8");
+        if (!requireStaticGet(exchange)) {
             return;
         }
 
@@ -102,37 +140,48 @@ public final class LogDoctorWebServer {
                 writeText(exchange, 404, "Not found", "text/plain; charset=utf-8");
                 return;
             }
-            String contentType = resource.endsWith(".html") ? "text/html; charset=utf-8"
-                    : resource.endsWith(".css") ? "text/css; charset=utf-8"
-                    : "application/javascript; charset=utf-8";
             byte[] body = in.readAllBytes();
-            applyCommonHeaders(exchange);
-            exchange.getResponseHeaders().set("Content-Type", contentType);
-            exchange.getResponseHeaders().set("Cache-Control", "no-store");
-            exchange.sendResponseHeaders(200, body.length);
-            exchange.getResponseBody().write(body);
-            exchange.close();
+            writeResponse(exchange, 200, body, contentType(resource));
         }
     }
 
+    private static boolean requireStaticGet(HttpExchange exchange) throws IOException {
+        if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            return true;
+        }
+        exchange.getResponseHeaders().set("Allow", "GET");
+        writeText(exchange, 405, "Method not allowed", "text/plain; charset=utf-8");
+        return false;
+    }
+
+    private static String contentType(String resource) {
+        if (resource.endsWith(".html")) {
+            return "text/html; charset=utf-8";
+        }
+        if (resource.endsWith(".css")) {
+            return "text/css; charset=utf-8";
+        }
+        return "application/javascript; charset=utf-8";
+    }
+
     private static void writeJson(HttpExchange exchange, int status, Object value) throws IOException {
-        byte[] body = JSON.writeValueAsBytes(value);
-        applyCommonHeaders(exchange);
-        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        exchange.getResponseHeaders().set("Cache-Control", "no-store");
-        exchange.sendResponseHeaders(status, body.length);
-        exchange.getResponseBody().write(body);
-        exchange.close();
+        writeResponse(exchange, status, JSON.writeValueAsBytes(value), "application/json; charset=utf-8");
     }
 
     private static void writeText(HttpExchange exchange, int status, String text, String contentType) throws IOException {
-        byte[] body = text.getBytes(StandardCharsets.UTF_8);
+        writeResponse(exchange, status, text.getBytes(StandardCharsets.UTF_8), contentType);
+    }
+
+    private static void writeResponse(HttpExchange exchange, int status, byte[] body, String contentType) throws IOException {
         applyCommonHeaders(exchange);
         exchange.getResponseHeaders().set("Content-Type", contentType);
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.sendResponseHeaders(status, body.length);
-        exchange.getResponseBody().write(body);
-        exchange.close();
+        try (var responseBody = exchange.getResponseBody()) {
+            responseBody.write(body);
+        } finally {
+            exchange.close();
+        }
     }
 
     private static void applyCommonHeaders(HttpExchange exchange) {
