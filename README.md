@@ -68,7 +68,7 @@ java -jar target/log-doctor-0.2.0.jar --web --port=9090
 ### Dashboard preview
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/8b0f5d3c-2519-4927-85e7-c26962370dfa" alt="Log Doctor dashboard preview" width="900" />
+  <img src="docs/images/dashboard-preview.svg" alt="Log Doctor web dashboard preview rendered from the current HTML/CSS design" width="1000" />
 </p>
 
 The dashboard shows:
