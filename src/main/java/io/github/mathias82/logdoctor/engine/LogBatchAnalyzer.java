@@ -1,6 +1,7 @@
 package io.github.mathias82.logdoctor.engine;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
@@ -21,13 +22,16 @@ import java.util.regex.Pattern;
  * groups repeated failures into incident fingerprints and derives a lightweight timeline.
  */
 public final class LogBatchAnalyzer {
-    private static final int MAX_INCIDENT_BLOCKS = 500;
-    private static final long CORRELATION_WINDOW_SECONDS = 120;
+    static final int MAX_INCIDENT_BLOCKS = 500;
+    static final long CORRELATION_WINDOW_SECONDS = 120;
 
     private static final Pattern OFFSET_TIMESTAMP = Pattern.compile(
             "\\b(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:Z|[+-]\\d{2}:?\\d{2}))\\b");
     private static final Pattern LOCAL_TIMESTAMP = Pattern.compile(
             "\\b(\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:[.,]\\d{1,9})?)\\b");
+    private static final Pattern LOG_LEVEL = Pattern.compile("(?i)\\b(TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL)\\b");
+    private static final Pattern UUID = Pattern.compile(
+            "(?i)\\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\b");
     private static final DateTimeFormatter LOCAL_TIMESTAMP_FORMATTER = new DateTimeFormatterBuilder()
             .appendPattern("yyyy-MM-dd HH:mm:ss")
             .optionalStart()
@@ -43,10 +47,12 @@ public final class LogBatchAnalyzer {
 
     public BatchDiagnosisResult analyze(String log) {
         if (log == null || log.isBlank()) {
-            return new BatchDiagnosisResult(0, 0, List.of(), List.of(), List.of());
+            return new BatchDiagnosisResult(0, 0, 0, false, List.of(), List.of(), List.of());
         }
 
         List<FailureBlock> blocks = splitFailureBlocks(log);
+        int detectedFailureBlocks = blocks.size();
+        boolean truncated = detectedFailureBlocks > MAX_INCIDENT_BLOCKS;
         Map<String, MutableGroup> groups = new LinkedHashMap<>();
         List<DiagnosedEvent> diagnosedEvents = new ArrayList<>();
 
@@ -69,6 +75,8 @@ public final class LogBatchAnalyzer {
         return new BatchDiagnosisResult(
                 countLines(log),
                 diagnosedEvents.size(),
+                detectedFailureBlocks,
+                truncated,
                 incidents,
                 investigationOrder(incidents),
                 correlations(diagnosedEvents)
@@ -94,7 +102,11 @@ public final class LogBatchAnalyzer {
                 blocks.add(new FailureBlock(current.toString(), currentTimestamp));
                 current = new StringBuilder(line);
                 currentTimestamp = parseTimestamp(line);
-            } else if (looksLikeContinuation(line) || !line.isBlank()) {
+            } else if (looksLikeNonFailureLogBoundary(line)) {
+                blocks.add(new FailureBlock(current.toString(), currentTimestamp));
+                current = null;
+                currentTimestamp = null;
+            } else {
                 current.append(System.lineSeparator()).append(line);
             }
         }
@@ -118,12 +130,34 @@ public final class LogBatchAnalyzer {
     }
 
     private static boolean looksLikeTopLevelFailureStart(String line) {
-        String lower = line.toLowerCase(Locale.ROOT);
-        boolean explicitLevel = lower.startsWith("error")
-                || lower.startsWith("fatal")
-                || lower.contains(" error ")
-                || lower.contains(" fatal ");
-        return explicitLevel || (parseTimestamp(line) != null && (lower.contains("error") || lower.contains("fatal")));
+        String trimmed = line.stripLeading();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("error ") || lower.startsWith("error:")
+                || lower.startsWith("fatal ") || lower.startsWith("fatal:")) {
+            return true;
+        }
+        if (parseTimestamp(line) == null) {
+            return false;
+        }
+        String level = logLevel(line);
+        return "ERROR".equals(level) || "FATAL".equals(level);
+    }
+
+    private static boolean looksLikeNonFailureLogBoundary(String line) {
+        if (parseTimestamp(line) == null || looksLikeContinuation(line)) {
+            return false;
+        }
+        String level = logLevel(line);
+        return "TRACE".equals(level)
+                || "DEBUG".equals(level)
+                || "INFO".equals(level)
+                || "WARN".equals(level)
+                || "WARNING".equals(level);
+    }
+
+    private static String logLevel(String line) {
+        Matcher matcher = LOG_LEVEL.matcher(line);
+        return matcher.find() ? matcher.group(1).toUpperCase(Locale.ROOT) : null;
     }
 
     private static boolean looksLikeContinuation(String line) {
@@ -141,7 +175,7 @@ public final class LogBatchAnalyzer {
             String raw = offsetMatcher.group(1);
             try {
                 OffsetDateTime parsed = OffsetDateTime.parse(normalizeOffset(raw));
-                return new ParsedTimestamp(raw, parsed.toLocalDateTime());
+                return ParsedTimestamp.offset(raw, parsed.toInstant());
             } catch (DateTimeParseException ignored) {
                 // Fall through to local timestamp parsing.
             }
@@ -152,9 +186,9 @@ public final class LogBatchAnalyzer {
             String raw = localMatcher.group(1);
             String normalized = raw.replace('T', ' ').replace(',', '.');
             try {
-                return new ParsedTimestamp(raw, LocalDateTime.parse(normalized, LOCAL_TIMESTAMP_FORMATTER));
+                return ParsedTimestamp.local(raw, LocalDateTime.parse(normalized, LOCAL_TIMESTAMP_FORMATTER));
             } catch (DateTimeParseException ignored) {
-                return new ParsedTimestamp(raw, null);
+                return new ParsedTimestamp(raw, null, null);
             }
         }
         return null;
@@ -175,7 +209,8 @@ public final class LogBatchAnalyzer {
 
     private static String normalizeRootCause(String value) {
         if (value == null) return "";
-        return value.toLowerCase(Locale.ROOT)
+        return UUID.matcher(value.toLowerCase(Locale.ROOT))
+                .replaceAll("<uuid>")
                 .replaceAll("0x[0-9a-f]+", "<hex>")
                 .replaceAll("\\b\\d+\\b", "<n>")
                 .replaceAll("\\s+", " ")
@@ -213,12 +248,19 @@ public final class LogBatchAnalyzer {
     }
 
     private static boolean withinCorrelationWindow(DiagnosedEvent first, DiagnosedEvent second) {
-        if (first.timestamp() == null || second.timestamp() == null
-                || first.timestamp().value() == null || second.timestamp().value() == null) {
-            return true;
+        Long seconds = secondsBetween(first.timestamp(), second.timestamp());
+        return seconds != null && seconds >= 0 && seconds <= CORRELATION_WINDOW_SECONDS;
+    }
+
+    private static Long secondsBetween(ParsedTimestamp first, ParsedTimestamp second) {
+        if (first == null || second == null) return null;
+        if (first.instant() != null && second.instant() != null) {
+            return Duration.between(first.instant(), second.instant()).getSeconds();
         }
-        long seconds = Math.abs(Duration.between(first.timestamp().value(), second.timestamp().value()).getSeconds());
-        return seconds <= CORRELATION_WINDOW_SECONDS;
+        if (first.localDateTime() != null && second.localDateTime() != null) {
+            return Duration.between(first.localDateTime(), second.localDateTime()).getSeconds();
+        }
+        return null;
     }
 
     private static int severityRank(String severity) {
@@ -234,23 +276,36 @@ public final class LogBatchAnalyzer {
     private static final class MutableGroup {
         private final DiagnosisEngine.DiagnosisResult sample;
         private int count;
-        private String firstSeen;
-        private String lastSeen;
+        private ParsedTimestamp firstSeen;
+        private ParsedTimestamp lastSeen;
 
         private MutableGroup(DiagnosisEngine.DiagnosisResult sample) { this.sample = sample; }
 
         private void addOccurrence(ParsedTimestamp timestamp) {
             count++;
             if (timestamp == null) return;
-            if (firstSeen == null) firstSeen = timestamp.raw();
-            lastSeen = timestamp.raw();
+            if (firstSeen == null) {
+                firstSeen = timestamp;
+                lastSeen = timestamp;
+                return;
+            }
+            Long fromFirst = secondsBetween(firstSeen, timestamp);
+            if (fromFirst != null && fromFirst < 0) {
+                firstSeen = timestamp;
+            }
+            Long fromLast = secondsBetween(lastSeen, timestamp);
+            if (fromLast == null || fromLast >= 0) {
+                lastSeen = timestamp;
+            }
         }
 
         private IncidentGroup snapshot() {
             return new IncidentGroup(
                     fingerprint(sample), count, sample.type(), sample.category(), sample.severity(), sample.confidence(),
                     sample.summary(), sample.rootCause(), sample.location(), sample.fixType(), sample.fix(),
-                    sample.humanReviewRequired(), sample.llmUsed(), sample.evidence(), firstSeen, lastSeen
+                    sample.humanReviewRequired(), sample.llmUsed(), sample.evidence(),
+                    firstSeen == null ? null : firstSeen.raw(),
+                    lastSeen == null ? null : lastSeen.raw()
             );
         }
     }
@@ -269,17 +324,29 @@ public final class LogBatchAnalyzer {
 
         private IncidentCorrelation snapshot() {
             return new IncidentCorrelation(fromType, toType, occurrences,
-                    "Observed consecutively within " + CORRELATION_WINDOW_SECONDS + " seconds when timestamps are available");
+                    "Observed consecutively within " + CORRELATION_WINDOW_SECONDS + " seconds using comparable timestamps");
         }
     }
 
     private record FailureBlock(String text, ParsedTimestamp timestamp) {}
-    private record ParsedTimestamp(String raw, LocalDateTime value) {}
+
+    private record ParsedTimestamp(String raw, Instant instant, LocalDateTime localDateTime) {
+        private static ParsedTimestamp offset(String raw, Instant instant) {
+            return new ParsedTimestamp(raw, instant, null);
+        }
+
+        private static ParsedTimestamp local(String raw, LocalDateTime localDateTime) {
+            return new ParsedTimestamp(raw, null, localDateTime);
+        }
+    }
+
     private record DiagnosedEvent(String fingerprint, String type, ParsedTimestamp timestamp) {}
 
     public record BatchDiagnosisResult(
             int totalLines,
             int failureBlocks,
+            int detectedFailureBlocks,
+            boolean truncated,
             List<IncidentGroup> incidents,
             List<String> investigationOrder,
             List<IncidentCorrelation> correlations
