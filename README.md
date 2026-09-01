@@ -8,6 +8,20 @@
 
 Log Doctor analyzes JVM logs, locates the most relevant failure, applies deterministic incident rules first, and uses a local Ollama model only when a safe deterministic diagnosis is unavailable.
 
+<p align="center">
+  <img src="https://cdn.simpleicons.org/openjdk/437291" alt="OpenJDK" width="52" height="52" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://cdn.simpleicons.org/apachemaven/C71A36" alt="Apache Maven" width="52" height="52" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://cdn.simpleicons.org/spring/6DB33F" alt="Spring" width="52" height="52" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://cdn.simpleicons.org/apachekafka/777777" alt="Apache Kafka" width="52" height="52" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://cdn.simpleicons.org/ollama/777777" alt="Ollama" width="52" height="52" />
+</p>
+
+<p align="center"><sub>Java 21 · Maven · Spring ecosystem · Apache Kafka · local Ollama</sub></p>
+
 ## Why Log Doctor?
 
 Production logs are noisy, root causes are often buried in nested exceptions, and generic AI advice is risky. Log Doctor is designed around four principles:
@@ -50,6 +64,12 @@ Use a custom port with either form:
 java -jar target/log-doctor-0.2.0.jar --web --port 9090
 java -jar target/log-doctor-0.2.0.jar --web --port=9090
 ```
+
+### Dashboard preview
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/8b0f5d3c-2519-4927-85e7-c26962370dfa" alt="Log Doctor dashboard preview" width="900" />
+</p>
 
 The dashboard shows:
 
