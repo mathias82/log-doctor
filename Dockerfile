@@ -8,7 +8,7 @@ RUN mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
-COPY --from=build /workspace/target/log-doctor-0.3.0.jar /app/log-doctor.jar
+COPY --from=build /workspace/target/log-doctor-*.jar /app/log-doctor.jar
 
 EXPOSE 8080
 

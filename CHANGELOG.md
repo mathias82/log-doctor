@@ -2,6 +2,38 @@
 
 All notable changes to Log Doctor will be documented in this file.
 
+## [0.4.0] - 2026-09-01
+
+### Added
+
+- real Docker-backed Ollama integration testing for unknown incident analysis
+- full Docker Compose stack for Log Doctor, Ollama and automatic model bootstrap
+- multi-stage Java 21 application Docker image
+- full-stack GitHub Actions E2E workflow that builds the image, starts the stack, checks application health and verifies a real unknown failure returns `llmUsed=true`
+- configurable Ollama URL and model for local, CI and container environments
+- configurable web bind address through `--host` and `LOG_DOCTOR_BIND_ADDRESS`
+- browser utility tests for escaping, severity mapping, upload validation and bounded privacy-safe history
+- regression coverage for the 500 failure-block cap, API serialization, structured log-level parsing and timeline ordering
+
+### Changed
+
+- batch analysis now performs deterministic grouping before optional LLM enrichment, limiting model use to at most one call per unique unknown incident fingerprint
+- clean INFO/DEBUG/WARN logs no longer create a synthetic failure block
+- `WARNING` is normalized to `WARN` by structured log-level parsing
+- failure parsing avoids treating log-level words embedded in message text as actual levels
+- timeline first/last occurrence handling is chronological and avoids unsafe comparisons between incompatible timestamp bases
+- request envelope sizing now permits valid 5 MB decoded logs even when JSON escaping expands the HTTP body
+- batch API exposes `uniqueIncidents` explicitly in serialized JSON
+- README now documents the one-command Docker stack as the fastest startup path
+- executable artifact version is now `0.4.0`
+
+### Security
+
+- the 5 MB decoded-log limit remains authoritative even with the larger JSON request envelope allowance
+- direct Java web execution remains bound to `127.0.0.1` by default; `0.0.0.0` is enabled explicitly for the Docker application container
+- raw logs and evidence remain excluded from browser history persistence
+- deterministic redaction remains in front of the local LLM boundary
+
 ## [0.3.0] - 2026-09-01
 
 ### Added
