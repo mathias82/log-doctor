@@ -1,5 +1,6 @@
 package io.github.mathias82.logdoctor.web;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import io.github.mathias82.logdoctor.core.Incident;
 import io.github.mathias82.logdoctor.core.IncidentCategory;
@@ -13,10 +14,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class LogDoctorWebServerTest {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private HttpServer server;
     private HttpClient client;
@@ -71,8 +75,47 @@ class LogDoctorWebServerTest {
     }
 
     @Test
+    void batchApiSerializesComputedAndTruncationFields() throws Exception {
+        String log = """
+                2026-09-01 14:32:17 ERROR request failed
+                java.lang.RuntimeException: boom
+                2026-09-01 14:32:18 ERROR request failed
+                java.lang.RuntimeException: boom
+                """;
+
+        var response = analyzeBatch(log);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("\"uniqueIncidents\":1");
+        assertThat(response.body()).contains("\"detectedFailureBlocks\":2");
+        assertThat(response.body()).contains("\"truncated\":false");
+        assertThat(response.body()).contains("\"incidents\"");
+    }
+
+    @Test
+    void servesBrowserCoreModule() throws Exception {
+        var response = client.send(
+                HttpRequest.newBuilder(URI.create(baseUrl + "/app-core.js")).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("Content-Type")).contains("application/javascript; charset=utf-8");
+        assertThat(response.body()).contains("LogDoctorWebCore");
+    }
+
+    @Test
     void analyzeAcceptsLogAtFiveMegabyteBoundaryDespiteJsonEnvelope() throws Exception {
         String log = "x".repeat(LogDoctorWebServer.MAX_LOG_BYTES);
+
+        var response = analyze(log);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).contains("\"status\":\"NO_FAILURE\"");
+    }
+
+    @Test
+    void analyzeAcceptsFiveMegabyteLogWhenJsonEscapingExpandsRequest() throws Exception {
+        String log = "\"".repeat(LogDoctorWebServer.MAX_LOG_BYTES);
 
         var response = analyze(log);
 
@@ -118,9 +161,18 @@ class LogDoctorWebServerTest {
     }
 
     private HttpResponse<String> analyze(String log) throws Exception {
-        var request = HttpRequest.newBuilder(URI.create(baseUrl + "/api/analyze"))
+        return postJson("/api/analyze", log);
+    }
+
+    private HttpResponse<String> analyzeBatch(String log) throws Exception {
+        return postJson("/api/analyze/batch", log);
+    }
+
+    private HttpResponse<String> postJson(String path, String log) throws Exception {
+        String body = JSON.writeValueAsString(Map.of("log", log));
+        var request = HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString("{\"log\":\"" + log + "\"}"))
+                .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
