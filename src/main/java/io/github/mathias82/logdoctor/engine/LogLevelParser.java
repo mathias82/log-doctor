@@ -14,11 +14,12 @@ final class LogLevelParser {
     private static final String LEVELS = "TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL";
     private static final String TIMESTAMP =
             "\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:[.,]\\d{1,9})?(?:Z|[+-]\\d{2}:?\\d{2})?";
+    private static final String BRACKETED_PREFIX = "(?:\\[[^\\]\\r\\n]{1,120}\\]\\s*)*";
 
     private static final Pattern LEADING_LEVEL = Pattern.compile(
             "(?i)^\\s*(" + LEVELS + ")(?=\\s|:|\\[|$)");
     private static final Pattern TIMESTAMPED_LEVEL = Pattern.compile(
-            "(?i)^\\s*" + TIMESTAMP + "\\s+(?:\\[[^\\]\\r\\n]{1,120}\\]\\s+)*(" + LEVELS + ")(?=\\s|:|\\[|$)");
+            "(?i)^\\s*" + TIMESTAMP + "\\s+" + BRACKETED_PREFIX + "(" + LEVELS + ")(?=\\s|:|\\[|$)");
 
     private LogLevelParser() {}
 
@@ -33,6 +34,7 @@ final class LogLevelParser {
     }
 
     private static String normalize(String level) {
-        return level.toUpperCase(Locale.ROOT);
+        String normalized = level.toUpperCase(Locale.ROOT);
+        return "WARNING".equals(normalized) ? "WARN" : normalized;
     }
 }
