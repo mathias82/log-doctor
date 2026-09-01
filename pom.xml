@@ -5,7 +5,7 @@
 
     <groupId>io.github.mathias82</groupId>
     <artifactId>log-doctor</artifactId>
-    <version>0.4.1</version>
+    <version>0.4.2</version>
     <name>Log Doctor</name>
     <description>Deterministic and local-LLM production log diagnosis for JVM, Spring, Hibernate and Kafka.</description>
     <url>https://github.com/mathias82/log-doctor</url>

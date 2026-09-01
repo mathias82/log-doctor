@@ -2,6 +2,18 @@
 
 All notable changes to Log Doctor will be documented in this file.
 
+## [0.4.2] - 2026-09-01
+
+### Changed
+
+- bump release version to `0.4.2` to avoid reusing or moving previously created release tags
+- retain the Maven Central secret names aligned with `spring-kafka-contract-starter`
+- retain non-interactive GPG signing for GitHub Actions
+
+### Fixed
+
+- provides a clean release/tag target after the earlier `v0.4.1` tag was created before the release version bump was merged
+
 ## [0.4.1] - 2026-09-01
 
 ### Changed
