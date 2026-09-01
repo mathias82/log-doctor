@@ -17,18 +17,34 @@ import java.util.Map;
 
 public class OllamaLlmClient implements LlmClient {
 
-    private static final String API_URL = "http://localhost:11434/api/generate";
-    private static final String MODEL = "qwen2.5:3b";
+    static final String DEFAULT_BASE_URL = "http://localhost:11434";
+    static final String DEFAULT_MODEL = "qwen2.5:3b";
     private static final MediaType JSON = MediaType.get("application/json");
 
-    private final OkHttpClient client = new OkHttpClient.Builder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .readTimeout(Duration.ofSeconds(60))
-            .callTimeout(Duration.ofSeconds(60))
-            .build();
+    private final OkHttpClient client;
+    private final ObjectMapper mapper;
+    private final LogRedactor redactor;
+    private final String apiUrl;
+    private final String model;
 
-    private final ObjectMapper mapper = new ObjectMapper();
-    private final LogRedactor redactor = new LogRedactor();
+    public OllamaLlmClient() {
+        this(
+                setting("log.doctor.ollama.url", "LOG_DOCTOR_OLLAMA_URL", DEFAULT_BASE_URL),
+                setting("log.doctor.ollama.model", "LOG_DOCTOR_OLLAMA_MODEL", DEFAULT_MODEL)
+        );
+    }
+
+    public OllamaLlmClient(String baseUrl, String model) {
+        this.client = new OkHttpClient.Builder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .readTimeout(Duration.ofSeconds(60))
+                .callTimeout(Duration.ofSeconds(60))
+                .build();
+        this.mapper = new ObjectMapper();
+        this.redactor = new LogRedactor();
+        this.apiUrl = normalizeBaseUrl(baseUrl) + "/api/generate";
+        this.model = requireSetting(model, "Ollama model");
+    }
 
     @Override
     public String explainKnownIncident(Incident incident) {
@@ -43,7 +59,7 @@ public class OllamaLlmClient implements LlmClient {
     private String callOllama(String prompt) {
         try {
             Map<String, Object> payload = Map.of(
-                    "model", MODEL,
+                    "model", model,
                     "prompt", prompt,
                     "stream", false,
                     "options", Map.of(
@@ -55,7 +71,7 @@ public class OllamaLlmClient implements LlmClient {
             );
 
             RequestBody body = RequestBody.create(mapper.writeValueAsString(payload), JSON);
-            Request request = new Request.Builder().url(API_URL).post(body).build();
+            Request request = new Request.Builder().url(apiUrl).post(body).build();
 
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
@@ -76,6 +92,25 @@ public class OllamaLlmClient implements LlmClient {
         } catch (Exception e) {
             throw new IllegalStateException("Local Ollama analysis is unavailable", e);
         }
+    }
+
+    private static String setting(String systemProperty, String environmentVariable, String fallback) {
+        String propertyValue = System.getProperty(systemProperty);
+        if (propertyValue != null && !propertyValue.isBlank()) return propertyValue.trim();
+        String environmentValue = System.getenv(environmentVariable);
+        if (environmentValue != null && !environmentValue.isBlank()) return environmentValue.trim();
+        return fallback;
+    }
+
+    private static String normalizeBaseUrl(String baseUrl) {
+        String value = requireSetting(baseUrl, "Ollama URL");
+        while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
+        return value;
+    }
+
+    private static String requireSetting(String value, String name) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(name + " must not be blank");
+        return value.trim();
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
