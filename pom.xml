@@ -5,9 +5,9 @@
 
     <groupId>io.github.mathias82</groupId>
     <artifactId>log-doctor</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <name>Log Doctor</name>
-    <description>CLI tool that analyzes Java/JVM/Spring/Hibernate/Kafka logs and explains failures.</description>
+    <description>Deterministic and local-LLM production log diagnosis for JVM, Spring, Hibernate and Kafka.</description>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
@@ -54,8 +54,6 @@
             <artifactId>jackson-databind</artifactId>
             <version>2.17.1</version>
         </dependency>
-
-
     </dependencies>
 
     <build>
