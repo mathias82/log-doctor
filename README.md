@@ -6,7 +6,9 @@
 
 **Deterministic + local-LLM production log diagnosis for JVM / Spring / Kafka.**
 
-Log Doctor analyzes JVM logs, locates the most relevant failure, applies deterministic incident rules first, and uses a local Ollama model only when a safe deterministic diagnosis is unavailable.
+Log Doctor analyzes real JVM log files, groups repeated failures, builds incident timelines, identifies likely failure chains, detects spikes, and uses deterministic diagnosis before optional local Ollama reasoning.
+
+> **Log Doctor doesn't replace an LLM. It decides what doesn't need one.**
 
 <p align="center">
   <img src="https://cdn.simpleicons.org/openjdk/437291" alt="OpenJDK" width="52" height="52" />
@@ -24,7 +26,7 @@ Log Doctor analyzes JVM logs, locates the most relevant failure, applies determi
 
 ## Why Log Doctor?
 
-Production logs are noisy, root causes are often buried in nested exceptions, and generic AI advice is risky. Log Doctor is designed around four principles:
+Production logs are noisy, repeated failures hide the signal, root causes are buried in nested stack traces, and generic AI advice can be unsafe. Log Doctor is designed around four principles:
 
 - deterministic rules before AI
 - safe remediation policies before automatic fixes
@@ -34,13 +36,18 @@ Production logs are noisy, root causes are often buried in nested exceptions, an
 ## Key capabilities
 
 - deterministic detection for common Spring Boot, Hibernate, Kafka, JDBC, memory and threading failures
-- structured diagnosis with severity, confidence, category, root cause, location and evidence
+- multi-incident analysis with failure-block detection, fingerprinting and deduplication
+- grouped incident counts with severity, confidence, category, root cause, location and evidence
+- first/last occurrence timeline metadata when timestamps are available
+- timestamp-aware likely correlations and scored root-cause chain candidates
+- per-minute spike detection against the observed baseline
+- generated Markdown incident reports for investigations and postmortems
 - upload or drag-and-drop `.log` / `.txt` files directly in the web UI
 - automatic analysis immediately after a valid log file is selected
+- deterministic redaction before log context reaches the local LLM boundary
 - policy-driven fix types and explicit human-review decisions
 - local Ollama assistance for unknown or ambiguous failures
-- CLI mode for terminal workflows
-- embedded web dashboard in the same executable JAR
+- CLI mode plus an embedded web dashboard in the same executable JAR
 - browser-local recent-analysis history; raw logs are not persisted by the server
 - hardened local HTTP API with payload limits, JSON validation and security headers
 - Java 21 CI with unit and HTTP API tests
@@ -51,7 +58,7 @@ Build the project and start the embedded dashboard:
 
 ```bash
 mvn clean verify
-java -jar target/log-doctor-0.2.0.jar --web
+java -jar target/log-doctor-0.3.0.jar --web
 ```
 
 Then open:
@@ -63,35 +70,39 @@ http://localhost:8080
 Use a custom port with either form:
 
 ```bash
-java -jar target/log-doctor-0.2.0.jar --web --port 9090
-java -jar target/log-doctor-0.2.0.jar --web --port=9090
+java -jar target/log-doctor-0.3.0.jar --web --port 9090
+java -jar target/log-doctor-0.3.0.jar --web --port=9090
 ```
 
 ### Upload a log file and get the diagnosis
 
-The web UI is file-first. A user can click the upload area or drag a `.log` / `.txt` file into it. The browser reads the file locally and starts analysis automatically — there is no extra submit step for uploaded files.
+The web UI is file-first. A user can click the upload area or drag a `.log` / `.txt` file into it. The browser reads the file locally and starts analysis automatically.
 
 ```text
 Select / drop log file
         ↓
 Read text locally in the browser
         ↓
-POST { "log": "..." } to /api/analyze
+POST { "log": "..." } to /api/analyze/batch
         ↓
-DiagnosisEngine
+Failure-block detection + DiagnosisEngine
         ↓
-Structured result rendered in the dashboard
+Fingerprinting + grouping + timeline
+        ↓
+Correlation + root-cause scoring + spikes
+        ↓
+Structured dashboard + Markdown report
 ```
 
 Supported upload behavior:
 
 - `.log`, `.txt`, and `text/plain`
-- maximum file size: 5 MB
-- empty files are rejected with a clear error
-- unsupported files are rejected before analysis
+- maximum log size: 5 MB
+- empty and unsupported files are rejected before analysis
 - selected filename, size, and analysis status are shown in the UI
-- manual paste + **Analyze logs** remains available
+- manual paste + **Analyze pasted logs** remains available
 - uploaded files are not persisted on the server
+- batch analysis processes up to 500 detected failure blocks and reports when analysis is truncated
 
 ### Dashboard preview
 
@@ -99,15 +110,16 @@ Supported upload behavior:
   <img src="docs/images/dashboard-preview.svg" alt="Log Doctor web UI showing uploaded log file analysis and structured diagnosis results" width="1000" />
 </p>
 
-The result dashboard shows:
+The dashboard includes:
 
-- severity and confidence
-- incident category and diagnosis mode
-- summary and root cause
-- failure location and source line when available
-- remediation and allowed fix type
-- human-review requirement
-- expandable evidence and raw diagnosis
+- total lines, analyzed failures and unique incident groups
+- investigation order
+- likely correlations
+- scored root-cause chain candidates
+- incident spikes
+- per-incident timeline, root cause and remediation
+- raw structured batch result
+- downloadable Markdown incident report
 - the 10 most recent analyses stored only in browser `localStorage`
 
 ## CLI usage
@@ -115,17 +127,17 @@ The result dashboard shows:
 Analyze a log file directly:
 
 ```bash
-java -jar target/log-doctor-0.2.0.jar --file examples/app.log
+java -jar target/log-doctor-0.3.0.jar --file examples/app.log
 ```
 
-The existing CLI output remains supported while the web API uses the structured diagnosis model.
+The CLI remains supported while the web dashboard exposes the richer batch-analysis model.
 
 ## Local Ollama setup
 
-Install Ollama, pull a model, and start the local service:
+Install Ollama, pull the configured model, and start the local service:
 
 ```bash
-ollama pull llama3
+ollama pull qwen2.5:3b
 ollama serve
 ```
 
@@ -135,54 +147,39 @@ Ollama normally listens on:
 http://localhost:11434
 ```
 
-Log Doctor keeps log analysis local and does not require a cloud LLM API.
+Log Doctor does not require a cloud LLM API. If Ollama is unavailable, deterministic diagnosis remains authoritative and unknown incidents fall back safely to human review.
 
 ## Analysis flow
 
 ```text
 Raw Logs / Uploaded File
           ↓
-LogParser
-   ↓
-FailureLocator
-   ↓
-FailureContextExtractor
-   ↓
-IncidentDetector
-   ↓
-┌────────────────────────┬───────────────────────────┐
-│ Deterministic incident │ Unknown / ambiguous      │
-│ HIGH confidence        │ failure                   │
-│ policy-constrained fix │ local Ollama explanation │
-└────────────────────────┴───────────────────────────┘
-   ↓
-Structured DiagnosisResult
-   ↓
-CLI text / JSON API / Web dashboard
+Failure-block detection
+          ↓
+DiagnosisEngine per incident
+          ↓
+Deterministic rules first
+          ↓
+Fingerprint + deduplicate
+          ↓
+Timeline + correlations
+          ↓
+Root-cause scoring + spike detection
+          ↓
+Structured JSON + Web UI + Markdown report
 ```
+
+Unknown or ambiguous failures may use local Ollama after sensitive prompt data is redacted. Correlation and chain scoring are heuristic evidence and do **not** prove causation.
 
 ## Fix safety
 
-Every deterministic incident is constrained by `FixPolicy`. Some classes of failure intentionally result in `NO_AUTOMATIC_FIX` and require human investigation. Examples include concurrency conflicts, data-consistency failures and unsafe threading scenarios.
+Every deterministic incident is constrained by `FixPolicy`. Some classes of failure intentionally result in `NO_AUTOMATIC_FIX` and require human investigation.
 
 ```text
 No safe automatic fix, human investigation required.
 ```
 
 Refusing to guess is part of the product behavior.
-
-## Example: Hibernate LazyInitializationException
-
-Input:
-
-```text
-Caused by: org.hibernate.LazyInitializationException:
-failed to lazily initialize a collection of role:
-com.mycompany.myservice.domain.User.orders, could not initialize proxy - no Session
-    at com.mycompany.myservice.service.UserService.toDto(UserService.java:74)
-```
-
-A deterministic rule can classify the incident, identify the service-layer location, attach supporting evidence and constrain the remediation to an allowed Java-code fix.
 
 ## HTTP API
 
@@ -192,7 +189,7 @@ Health check:
 curl http://localhost:8080/api/health
 ```
 
-Analyze a log:
+Analyze a single log payload:
 
 ```bash
 curl -X POST http://localhost:8080/api/analyze \
@@ -200,7 +197,28 @@ curl -X POST http://localhost:8080/api/analyze \
   -d '{"log":"java.lang.IllegalStateException: transition not allowed"}'
 ```
 
-`/api/analyze` accepts JSON only and enforces a 5 MB log-payload limit. The embedded server binds to `127.0.0.1` by default.
+Analyze a real log stream with grouping, timeline, correlations, spikes and report generation:
+
+```bash
+curl -X POST http://localhost:8080/api/analyze/batch \
+  -H 'Content-Type: application/json' \
+  -d '{"log":"2026-09-01 14:32:17 ERROR request failed\njava.lang.RuntimeException: boom"}'
+```
+
+The API accepts JSON only, enforces the 5 MB decoded-log limit, and binds to `127.0.0.1` by default.
+
+## Sensitive-data redaction
+
+Before log context reaches the local LLM boundary, Log Doctor performs deterministic best-effort redaction for common sensitive values including:
+
+- bearer tokens and JWTs
+- passwords and secrets
+- API keys, access tokens and refresh tokens
+- secret query-string parameters
+- email addresses
+- IPv4 addresses
+
+Redaction is a defense-in-depth measure, not a guarantee that every possible secret format will be detected.
 
 ## Build and test
 
@@ -253,13 +271,14 @@ src/main/resources/web/
 
 ## Release notes
 
-See [CHANGELOG.md](CHANGELOG.md) for version history. The `0.2.0` line introduces the embedded web dashboard, structured diagnosis API, local browser history, configurable web port, CI coverage and HTTP hardening.
+See [CHANGELOG.md](CHANGELOG.md) for version history and [0.3.0 release notes](docs/release-notes-0.3.0.md) for the current release summary.
 
 ## Philosophy
 
 - Determinism before AI
 - Safety before automation
 - Local-first, privacy-first
+- Evidence before causation claims
 - Production realism over demos
 
 ## License
