@@ -35,6 +35,8 @@ Production logs are noisy, root causes are often buried in nested exceptions, an
 
 - deterministic detection for common Spring Boot, Hibernate, Kafka, JDBC, memory and threading failures
 - structured diagnosis with severity, confidence, category, root cause, location and evidence
+- upload or drag-and-drop `.log` / `.txt` files directly in the web UI
+- automatic analysis immediately after a valid log file is selected
 - policy-driven fix types and explicit human-review decisions
 - local Ollama assistance for unknown or ambiguous failures
 - CLI mode for terminal workflows
@@ -65,13 +67,39 @@ java -jar target/log-doctor-0.2.0.jar --web --port 9090
 java -jar target/log-doctor-0.2.0.jar --web --port=9090
 ```
 
+### Upload a log file and get the diagnosis
+
+The web UI is file-first. A user can click the upload area or drag a `.log` / `.txt` file into it. The browser reads the file locally and starts analysis automatically — there is no extra submit step for uploaded files.
+
+```text
+Select / drop log file
+        ↓
+Read text locally in the browser
+        ↓
+POST { "log": "..." } to /api/analyze
+        ↓
+DiagnosisEngine
+        ↓
+Structured result rendered in the dashboard
+```
+
+Supported upload behavior:
+
+- `.log`, `.txt`, and `text/plain`
+- maximum file size: 5 MB
+- empty files are rejected with a clear error
+- unsupported files are rejected before analysis
+- selected filename, size, and analysis status are shown in the UI
+- manual paste + **Analyze logs** remains available
+- uploaded files are not persisted on the server
+
 ### Dashboard preview
 
 <p align="center">
-  <img src="docs/images/dashboard-preview.svg" alt="Log Doctor web dashboard preview rendered from the current HTML/CSS design" width="1000" />
+  <img src="docs/images/dashboard-preview.svg" alt="Log Doctor web UI showing uploaded log file analysis and structured diagnosis results" width="1000" />
 </p>
 
-The dashboard shows:
+The result dashboard shows:
 
 - severity and confidence
 - incident category and diagnosis mode
@@ -112,8 +140,8 @@ Log Doctor keeps log analysis local and does not require a cloud LLM API.
 ## Analysis flow
 
 ```text
-Raw Logs
-   ↓
+Raw Logs / Uploaded File
+          ↓
 LogParser
    ↓
 FailureLocator
