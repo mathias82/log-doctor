@@ -37,6 +37,8 @@ Production logs are noisy, repeated failures hide the signal, root causes are bu
 
 - deterministic detection for common Spring Boot, Hibernate, Kafka, JDBC, memory and threading failures
 - multi-incident analysis with failure-block detection, fingerprinting and deduplication
+- deterministic-only batch first pass before any optional model call
+- at most one local-LLM enrichment call per unique unknown incident fingerprint in batch mode
 - grouped incident counts with severity, confidence, category, root cause, location and evidence
 - first/last occurrence timeline metadata when timestamps are available
 - timestamp-aware likely correlations and scored root-cause chain candidates
@@ -85,9 +87,13 @@ Read text locally in the browser
         ↓
 POST { "log": "..." } to /api/analyze/batch
         ↓
-Failure-block detection + DiagnosisEngine
+Failure-block detection
+        ↓
+Deterministic-only diagnosis per block
         ↓
 Fingerprinting + grouping + timeline
+        ↓
+Optional LLM enrichment once per unique unknown group
         ↓
 Correlation + root-cause scoring + spikes
         ↓
@@ -147,7 +153,7 @@ Ollama normally listens on:
 http://localhost:11434
 ```
 
-Log Doctor does not require a cloud LLM API. If Ollama is unavailable, deterministic diagnosis remains authoritative and unknown incidents fall back safely to human review.
+Log Doctor does not require a cloud LLM API. If Ollama is unavailable, deterministic diagnosis remains authoritative and unknown incidents fall back safely to human review. In batch mode repeated unknown failures are fingerprinted before model enrichment, so a repeated incident group does not trigger one model request per occurrence.
 
 ## Analysis flow
 
@@ -156,11 +162,11 @@ Raw Logs / Uploaded File
           ↓
 Failure-block detection
           ↓
-DiagnosisEngine per incident
-          ↓
-Deterministic rules first
+Deterministic-only DiagnosisEngine pass
           ↓
 Fingerprint + deduplicate
+          ↓
+Optional LLM enrichment per unique unknown group
           ↓
 Timeline + correlations
           ↓
