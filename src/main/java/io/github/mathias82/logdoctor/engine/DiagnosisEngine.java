@@ -12,9 +12,34 @@ import java.util.Set;
 public class DiagnosisEngine {
 
     private final IncidentDetector detector = new IncidentDetector();
-    private final LlmClient llm = new OllamaLlmClient();
+    private final LlmClient llm;
 
+    public DiagnosisEngine() {
+        this(new OllamaLlmClient());
+    }
+
+    public DiagnosisEngine(LlmClient llm) {
+        this.llm = llm;
+    }
+
+    /**
+     * Backward-compatible CLI entry point.
+     */
     public void analyze(String log) {
+        System.out.print(analyzeToText(log));
+    }
+
+    /**
+     * Runs the complete diagnosis pipeline and returns a renderable text result.
+     * Keeping diagnosis output as a return value allows the same engine to be
+     * reused by the CLI and the embedded web UI without redirecting stdout.
+     */
+    public String analyzeToText(String log) {
+        StringBuilder output = new StringBuilder();
+
+        if (log == null || log.isBlank()) {
+            return "No log content provided.\n";
+        }
 
         LogParser parser = new LogParser();
         FailureLocator locator = new FailureLocator();
@@ -24,8 +49,7 @@ public class DiagnosisEngine {
         var failureOpt = locator.locate(lines);
 
         if (failureOpt.isEmpty()) {
-            System.out.println("No obvious failure found.");
-            return;
+            return "No obvious failure found.\n";
         }
 
         var failure = failureOpt.get();
@@ -37,81 +61,77 @@ public class DiagnosisEngine {
                 contextText
         );
 
-        detector.detect(ruleContext)
-                .filter(i -> i.confidence() == Confidence.HIGH)
-                .ifPresentOrElse(
-                        incident -> {
-                            incident.setEvidence(contextText);
+        var incidentOpt = detector.detect(ruleContext)
+                .filter(i -> i.confidence() == Confidence.HIGH);
 
-                            incident.setComponent(
-                                    failure.blameLocation() != null
-                                            ? failure.blameLocation().content()
-                                            : failure.rootCause().content()
-                            );
+        if (incidentOpt.isPresent()) {
+            var incident = incidentOpt.get();
+            incident.setEvidence(contextText);
+            incident.setComponent(
+                    failure.blameLocation() != null
+                            ? failure.blameLocation().content()
+                            : failure.rootCause().content()
+            );
 
-                            System.out.println(incident.format());
+            output.append(incident.format()).append(System.lineSeparator());
 
-                            var allowedFixes = FixPolicy.allowedFixes(incident.category());
-                            if (allowedFixes.equals(Set.of(FixType.NO_AUTOMATIC_FIX))) {
-                                System.out.println(incident.format());
-                                System.out.println("""
-                                FIX:
-                                No safe automatic fix, human investigation required.
-                                """);
-                                return;
-                            }
+            var allowedFixes = FixPolicy.allowedFixes(incident.category());
+            if (allowedFixes.equals(Set.of(FixType.NO_AUTOMATIC_FIX))) {
+                output.append("FIX:").append(System.lineSeparator())
+                        .append("No safe automatic fix, human investigation required.")
+                        .append(System.lineSeparator());
+                return output.toString();
+            }
 
-                            System.out.println("Waiting LLM to Answer...");
-                            System.out.println(llm.explainKnownIncident(incident));
-                        },
-                () -> {
-                    System.out.println(
-                            "Unknown failure detected at line "
-                                    + failure.rootCause().lineNumber()
-                    );
-                    System.out.println(contextText);
+            output.append("LLM ANALYSIS:").append(System.lineSeparator());
+            output.append(llm.explainKnownIncident(incident)).append(System.lineSeparator());
+            return output.toString();
+        }
 
-                    String concurrencyText = contextText.toLowerCase();
+        output.append("Unknown failure detected at line ")
+                .append(failure.rootCause().lineNumber())
+                .append(System.lineSeparator())
+                .append(contextText)
+                .append(System.lineSeparator());
 
-                    if (concurrencyText.contains("optimisticlock")
-                            || concurrencyText.contains("staleobjectstate")
-                            || concurrencyText.contains("deadlock")
-                            || concurrencyText.contains("could not serialize access")) {
+        String concurrencyText = contextText.toLowerCase();
 
-                        System.out.println("""
-                            WHERE:
-                            Concurrency / data consistency failure detected in application layer
+        if (concurrencyText.contains("optimisticlock")
+                || concurrencyText.contains("staleobjectstate")
+                || concurrencyText.contains("deadlock")
+                || concurrencyText.contains("could not serialize access")) {
 
-                            FIX:
-                            No safe automatic fix, human investigation required.
-                        """);
-                        return;
-                    }
+            output.append("WHERE:").append(System.lineSeparator())
+                    .append("Concurrency / data consistency failure detected in application layer")
+                    .append(System.lineSeparator()).append(System.lineSeparator())
+                    .append("FIX:").append(System.lineSeparator())
+                    .append("No safe automatic fix, human investigation required.")
+                    .append(System.lineSeparator());
+            return output.toString();
+        }
 
-                    if (concurrencyText.contains("illegalstateexception")
-                            && (concurrencyText.contains("transition")
-                            || concurrencyText.contains("state")
-                            || concurrencyText.contains("not allowed"))) {
+        if (concurrencyText.contains("illegalstateexception")
+                && (concurrencyText.contains("transition")
+                || concurrencyText.contains("state")
+                || concurrencyText.contains("not allowed"))) {
 
-                        System.out.println("""
-                            WHERE:
-                            Domain state machine / business invariant violation
+            output.append("WHERE:").append(System.lineSeparator())
+                    .append("Domain state machine / business invariant violation")
+                    .append(System.lineSeparator()).append(System.lineSeparator())
+                    .append("FIX:").append(System.lineSeparator())
+                    .append("No safe automatic fix, human investigation required.")
+                    .append(System.lineSeparator());
+            return output.toString();
+        }
 
-                            FIX:
-                            No safe automatic fix, human investigation required.
-                        """);
-                        return;
-                    }
+        IncidentCategory inferredCategory =
+                contextText.contains("RestTemplate")
+                        || contextText.contains("SocketTimeoutException")
+                        ? IncidentCategory.INFRASTRUCTURE
+                        : IncidentCategory.UNKNOWN;
 
-                    IncidentCategory inferredCategory =
-                            contextText.contains("RestTemplate")
-                                    || contextText.contains("SocketTimeoutException")
-                                    ? IncidentCategory.INFRASTRUCTURE
-                                    : IncidentCategory.UNKNOWN;
-
-                    System.out.println("Waiting LLM to Answer...");
-                    System.out.println(llm.analyzeUnknownLog(contextText, inferredCategory));
-                }
-        );
+        output.append("LLM ANALYSIS:").append(System.lineSeparator());
+        output.append(llm.analyzeUnknownLog(contextText, inferredCategory)).append(System.lineSeparator());
+        return output.toString();
     }
 }
