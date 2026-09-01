@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.github.mathias82.logdoctor.engine.DiagnosisEngine;
+import io.github.mathias82.logdoctor.engine.LogBatchAnalyzer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,6 +31,7 @@ public final class LogDoctorWebServer {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
             server.createContext("/api/analyze", exchange -> handleAnalyze(exchange, engine));
+            server.createContext("/api/analyze/batch", exchange -> handleBatchAnalyze(exchange, engine));
             server.createContext("/api/health", LogDoctorWebServer::handleHealth);
             server.createContext("/", LogDoctorWebServer::handleStatic);
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
@@ -43,16 +45,21 @@ public final class LogDoctorWebServer {
     }
 
     private static void handleHealth(HttpExchange exchange) throws IOException {
-        if (!requireMethod(exchange, "GET")) {
-            return;
-        }
+        if (!requireMethod(exchange, "GET")) return;
         writeJson(exchange, 200, Map.of("status", "UP"));
     }
 
     private static void handleAnalyze(HttpExchange exchange, DiagnosisEngine engine) throws IOException {
-        if (!requireMethod(exchange, "POST")) {
-            return;
-        }
+        handleLogRequest(exchange, log -> engine.analyzeStructured(log));
+    }
+
+    private static void handleBatchAnalyze(HttpExchange exchange, DiagnosisEngine engine) throws IOException {
+        LogBatchAnalyzer batchAnalyzer = new LogBatchAnalyzer(engine);
+        handleLogRequest(exchange, batchAnalyzer::analyze);
+    }
+
+    private static void handleLogRequest(HttpExchange exchange, LogAnalysis analysis) throws IOException {
+        if (!requireMethod(exchange, "POST")) return;
         if (!isJsonRequest(exchange)) {
             writeJson(exchange, 415, Map.of("error", "Content-Type must be application/json"));
             return;
@@ -81,8 +88,7 @@ public final class LogDoctorWebServer {
                 writeJson(exchange, 413, Map.of("error", "Log content exceeds the 5 MB limit"));
                 return;
             }
-
-            writeJson(exchange, 200, engine.analyzeStructured(request.log()));
+            writeJson(exchange, 200, analysis.analyze(request.log()));
         } catch (JsonProcessingException e) {
             writeJson(exchange, 400, Map.of("error", "Invalid JSON request"));
         } catch (RuntimeException e) {
@@ -91,9 +97,7 @@ public final class LogDoctorWebServer {
     }
 
     private static boolean requireMethod(HttpExchange exchange, String expectedMethod) throws IOException {
-        if (expectedMethod.equalsIgnoreCase(exchange.getRequestMethod())) {
-            return true;
-        }
+        if (expectedMethod.equalsIgnoreCase(exchange.getRequestMethod())) return true;
         exchange.getResponseHeaders().set("Allow", expectedMethod);
         writeJson(exchange, 405, Map.of("error", "Method not allowed"));
         return false;
@@ -101,17 +105,12 @@ public final class LogDoctorWebServer {
 
     private static boolean isJsonRequest(HttpExchange exchange) {
         String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
-        if (contentType == null) {
-            return false;
-        }
-        return contentType.toLowerCase(Locale.ROOT).startsWith("application/json");
+        return contentType != null && contentType.toLowerCase(Locale.ROOT).startsWith("application/json");
     }
 
     private static boolean declaredRequestTooLarge(HttpExchange exchange) {
         String contentLength = exchange.getRequestHeaders().getFirst("Content-Length");
-        if (contentLength == null) {
-            return false;
-        }
+        if (contentLength == null) return false;
         try {
             return Long.parseLong(contentLength) > MAX_REQUEST_BYTES;
         } catch (NumberFormatException ignored) {
@@ -120,10 +119,7 @@ public final class LogDoctorWebServer {
     }
 
     private static void handleStatic(HttpExchange exchange) throws IOException {
-        if (!requireStaticGet(exchange)) {
-            return;
-        }
-
+        if (!requireStaticGet(exchange)) return;
         String resource = switch (exchange.getRequestURI().getPath()) {
             case "/", "/index.html" -> "/web/index.html";
             case "/app.css" -> "/web/app.css";
@@ -134,33 +130,25 @@ public final class LogDoctorWebServer {
             writeText(exchange, 404, "Not found", "text/plain; charset=utf-8");
             return;
         }
-
         try (InputStream in = LogDoctorWebServer.class.getResourceAsStream(resource)) {
             if (in == null) {
                 writeText(exchange, 404, "Not found", "text/plain; charset=utf-8");
                 return;
             }
-            byte[] body = in.readAllBytes();
-            writeResponse(exchange, 200, body, contentType(resource));
+            writeResponse(exchange, 200, in.readAllBytes(), contentType(resource));
         }
     }
 
     private static boolean requireStaticGet(HttpExchange exchange) throws IOException {
-        if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-            return true;
-        }
+        if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) return true;
         exchange.getResponseHeaders().set("Allow", "GET");
         writeText(exchange, 405, "Method not allowed", "text/plain; charset=utf-8");
         return false;
     }
 
     private static String contentType(String resource) {
-        if (resource.endsWith(".html")) {
-            return "text/html; charset=utf-8";
-        }
-        if (resource.endsWith(".css")) {
-            return "text/css; charset=utf-8";
-        }
+        if (resource.endsWith(".html")) return "text/html; charset=utf-8";
+        if (resource.endsWith(".css")) return "text/css; charset=utf-8";
         return "application/javascript; charset=utf-8";
     }
 
@@ -190,6 +178,11 @@ public final class LogDoctorWebServer {
         headers.set("X-Frame-Options", "DENY");
         headers.set("Referrer-Policy", "no-referrer");
         headers.set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+    }
+
+    @FunctionalInterface
+    private interface LogAnalysis {
+        Object analyze(String log);
     }
 
     private record AnalyzeRequest(String log) {}
