@@ -18,7 +18,8 @@ import java.util.concurrent.Executors;
 public final class LogDoctorWebServer {
     static final int MAX_LOG_BYTES = 5 * 1024 * 1024;
     private static final int JSON_OVERHEAD_BYTES = 64 * 1024;
-    private static final int MAX_REQUEST_BYTES = MAX_LOG_BYTES + JSON_OVERHEAD_BYTES;
+    private static final int MAX_JSON_BYTES_PER_LOG_BYTE = 6;
+    private static final int MAX_REQUEST_BYTES = MAX_LOG_BYTES * MAX_JSON_BYTES_PER_LOG_BYTE + JSON_OVERHEAD_BYTES;
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private LogDoctorWebServer() {}
@@ -123,6 +124,7 @@ public final class LogDoctorWebServer {
         String resource = switch (exchange.getRequestURI().getPath()) {
             case "/", "/index.html" -> "/web/index.html";
             case "/app.css" -> "/web/app.css";
+            case "/app-core.js" -> "/web/app-core.js";
             case "/app.js" -> "/web/app.js";
             default -> null;
         };
