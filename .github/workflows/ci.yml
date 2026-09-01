@@ -25,8 +25,16 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Verify
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify Java
         run: mvn --batch-mode --no-transfer-progress clean verify
+
+      - name: Verify browser utilities
+        run: node --test src/test/js/*.test.cjs
 
       - name: Upload test reports
         if: always()

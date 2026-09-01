@@ -57,6 +57,53 @@ class LogBatchAnalyzerTest {
     }
 
     @Test
+    void doesNotTreatLevelWordInsideTimestampedMessageAsLogLevel() {
+        String log = """
+                2026-09-01 14:32:17 ERROR request failed
+                java.lang.RuntimeException: boom
+                2026-09-01 14:32:17 worker reports INFO cache metadata
+                    at com.acme.OrderService.run(OrderService.java:41)
+                2026-09-01 14:32:18 INFO request completed
+                """;
+
+        var result = analyzer.analyze(log);
+
+        assertThat(result.detectedFailureBlocks()).isEqualTo(1);
+        assertThat(result.incidents()).hasSize(1);
+        assertThat(result.incidents().getFirst().evidence()).contains("reports INFO cache metadata");
+    }
+
+    @Test
+    void recognizesLevelAfterTimestampAndThreadPrefix() {
+        String log = """
+                2026-09-01 14:32:17 [worker-1] ERROR request failed
+                java.lang.RuntimeException: boom
+                2026-09-01 14:32:18 [worker-1] INFO request completed
+                """;
+
+        var result = analyzer.analyze(log);
+
+        assertThat(result.detectedFailureBlocks()).isEqualTo(1);
+        assertThat(result.failureBlocks()).isEqualTo(1);
+    }
+
+    @Test
+    void reportsDetectedBlocksBeyondProcessingCapAsTruncated() {
+        StringBuilder log = new StringBuilder();
+        for (int i = 0; i < LogBatchAnalyzer.MAX_INCIDENT_BLOCKS + 1; i++) {
+            log.append("2026-09-01 14:32:17 ERROR request failed\n")
+                    .append("java.lang.RuntimeException: repeated failure\n");
+        }
+
+        var result = analyzer.analyze(log.toString());
+
+        assertThat(result.detectedFailureBlocks()).isEqualTo(LogBatchAnalyzer.MAX_INCIDENT_BLOCKS + 1);
+        assertThat(result.failureBlocks()).isEqualTo(LogBatchAnalyzer.MAX_INCIDENT_BLOCKS);
+        assertThat(result.truncated()).isTrue();
+        assertThat(result.reportMarkdown()).contains("Analysis truncated: true");
+    }
+
+    @Test
     void keepsCausedByStackTraceInsideParentFailureBlock() {
         String log = """
                 2026-09-01 14:32:17 ERROR request failed
