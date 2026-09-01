@@ -35,7 +35,32 @@ class DiagnosisEngineTest {
         assertThat(result.status()).isEqualTo("UNKNOWN");
         assertThat(result.type()).isEqualTo("UNKNOWN_FAILURE");
         assertThat(result.llmUsed()).isTrue();
+        assertThat(result.fixType()).isEqualTo("NO_AUTOMATIC_FIX");
         assertThat(result.diagnosis()).contains("stub unknown analysis");
+    }
+
+    @Test
+    void fallsBackToHumanReviewWhenLlmIsUnavailable() {
+        var failingEngine = new DiagnosisEngine(new FailingLlmClient());
+
+        var result = failingEngine.analyzeStructured("java.lang.RuntimeException: boom");
+
+        assertThat(result.status()).isEqualTo("UNKNOWN");
+        assertThat(result.llmUsed()).isFalse();
+        assertThat(result.humanReviewRequired()).isTrue();
+        assertThat(result.fixType()).isEqualTo("NO_AUTOMATIC_FIX");
+        assertThat(result.fix()).contains("LLM analysis is unavailable");
+        assertThat(result.diagnosis()).doesNotContain("LLM ANALYSIS:");
+    }
+
+    @Test
+    void treatsBlankLlmResponseAsUnavailable() {
+        var blankEngine = new DiagnosisEngine(new BlankLlmClient());
+
+        var result = blankEngine.analyzeStructured("java.lang.RuntimeException: boom");
+
+        assertThat(result.llmUsed()).isFalse();
+        assertThat(result.humanReviewRequired()).isTrue();
     }
 
     @Test
@@ -46,6 +71,14 @@ class DiagnosisEngineTest {
         assertThat(result.humanReviewRequired()).isTrue();
         assertThat(result.llmUsed()).isFalse();
         assertThat(result.fixType()).isEqualTo("NO_AUTOMATIC_FIX");
+        assertThat(result.location()).contains("OptimisticLockException");
+    }
+
+    @Test
+    void infersInfrastructureCategoryCaseInsensitively() {
+        var result = engine.analyzeStructured("java.net.SocketTimeoutException: timeout from RestTemplate");
+
+        assertThat(result.category()).isEqualTo("INFRASTRUCTURE");
     }
 
     private static final class StubLlmClient implements LlmClient {
@@ -57,6 +90,30 @@ class DiagnosisEngineTest {
         @Override
         public String analyzeUnknownLog(String rawLog, IncidentCategory category) {
             return "stub unknown analysis";
+        }
+    }
+
+    private static final class FailingLlmClient implements LlmClient {
+        @Override
+        public String explainKnownIncident(Incident incident) {
+            throw new IllegalStateException("Ollama unavailable");
+        }
+
+        @Override
+        public String analyzeUnknownLog(String rawLog, IncidentCategory category) {
+            throw new IllegalStateException("Ollama unavailable");
+        }
+    }
+
+    private static final class BlankLlmClient implements LlmClient {
+        @Override
+        public String explainKnownIncident(Incident incident) {
+            return "  ";
+        }
+
+        @Override
+        public String analyzeUnknownLog(String rawLog, IncidentCategory category) {
+            return "  ";
         }
     }
 }
