@@ -102,15 +102,15 @@ Requirements: JDK 21, Maven 3.9+, and local Ollama only for LLM-backed analysis.
 
 ```bash
 mvn clean verify
-java -jar target/log-doctor-0.4.0.jar --web
+java -jar target/log-doctor-0.4.1.jar --web
 ```
 
 Default bind: `127.0.0.1:8080`.
 
 ```bash
-java -jar target/log-doctor-0.4.0.jar --web --port 9090
-java -jar target/log-doctor-0.4.0.jar --web --host 0.0.0.0
-LOG_DOCTOR_BIND_ADDRESS=0.0.0.0 java -jar target/log-doctor-0.4.0.jar --web
+java -jar target/log-doctor-0.4.1.jar --web --port 9090
+java -jar target/log-doctor-0.4.1.jar --web --host 0.0.0.0
+LOG_DOCTOR_BIND_ADDRESS=0.0.0.0 java -jar target/log-doctor-0.4.1.jar --web
 ```
 
 Ollama configuration:
@@ -194,13 +194,13 @@ Coordinates for this release:
 <dependency>
     <groupId>io.github.mathias82</groupId>
     <artifactId>log-doctor</artifactId>
-    <version>0.4.0</version>
+    <version>0.4.1</version>
 </dependency>
 ```
 
 The artifact becomes resolvable only after the corresponding version is successfully published. Publication uses the Sonatype Central Publisher Portal, sources/Javadocs, GPG signing and `.github/workflows/publish-maven-central.yml`.
 
-Required repository secrets are `CENTRAL_USERNAME`, `CENTRAL_PASSWORD`, `GPG_PRIVATE_KEY`, and `GPG_PASSPHRASE`. Maven Central releases are immutable; never reuse a published version.
+Required repository secrets are `MAVEN_USERNAME`, `MAVEN_PASSWORD`, `MAVEN_GPG_PRIVATE_KEY`, and `MAVEN_GPG_PASSPHRASE`. Maven Central releases are immutable; never reuse a published version.
 
 ## Supported incidents
 
