@@ -35,6 +35,28 @@ class LogBatchAnalyzerTest {
     }
 
     @Test
+    void callsLlmOnceForRepeatedUnknownIncidentGroup() {
+        CountingLlmClient llm = new CountingLlmClient();
+        LogBatchAnalyzer countingAnalyzer = new LogBatchAnalyzer(new DiagnosisEngine(llm));
+        String log = """
+                2026-09-01 14:32:17 ERROR request failed
+                java.lang.RuntimeException: order 123 failed
+                at com.acme.OrderService.run(OrderService.java:41)
+                2026-09-01 14:32:30 ERROR request failed
+                java.lang.RuntimeException: order 456 failed
+                at com.acme.OrderService.run(OrderService.java:41)
+                """;
+
+        var result = countingAnalyzer.analyze(log);
+
+        assertThat(result.detectedFailureBlocks()).isEqualTo(2);
+        assertThat(result.uniqueIncidents()).isEqualTo(1);
+        assertThat(llm.unknownCalls).isEqualTo(1);
+        assertThat(llm.knownCalls).isZero();
+        assertThat(result.incidents().getFirst().llmUsed()).isTrue();
+    }
+
+    @Test
     void keepsCausedByStackTraceInsideParentFailureBlock() {
         String log = """
                 2026-09-01 14:32:17 ERROR request failed
@@ -152,8 +174,25 @@ class LogBatchAnalyzerTest {
         assertThat(result.truncated()).isFalse();
     }
 
-    private static final class StubLlmClient implements LlmClient {
+    private static class StubLlmClient implements LlmClient {
         @Override public String explainKnownIncident(Incident incident) { return "known"; }
         @Override public String analyzeUnknownLog(String rawLog, IncidentCategory category) { return "unknown"; }
+    }
+
+    private static final class CountingLlmClient extends StubLlmClient {
+        private int knownCalls;
+        private int unknownCalls;
+
+        @Override
+        public String explainKnownIncident(Incident incident) {
+            knownCalls++;
+            return "known";
+        }
+
+        @Override
+        public String analyzeUnknownLog(String rawLog, IncidentCategory category) {
+            unknownCalls++;
+            return "unknown";
+        }
     }
 }
