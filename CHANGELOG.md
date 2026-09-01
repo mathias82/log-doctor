@@ -16,6 +16,8 @@ All notable changes to Log Doctor will be documented in this file.
 - Web UI download action for generated incident reports
 - prompt-boundary redaction for bearer tokens, JWTs, passwords, API keys, tokens, email addresses and IPv4 addresses
 - batch-analysis metadata for detected blocks and truncation when the 500-block safety cap is reached
+- Maven Central publishing profile with source JARs, Javadoc JARs, GPG signing and Sonatype Central Publisher Portal integration
+- tag-triggered GitHub Actions workflow for signed Maven Central releases
 
 ### Changed
 
@@ -26,12 +28,14 @@ All notable changes to Log Doctor will be documented in this file.
 - incident fingerprints normalize volatile IDs including numbers, hex values and UUIDs
 - Ollama failures now fall back safely instead of being treated as successful LLM diagnoses
 - the executable artifact version is now `0.3.0`
+- release metadata now includes license, developer and SCM information required for Maven Central publication
 
 ### Security
 
 - sensitive values are redacted before log context reaches the local LLM boundary
 - JSON-style secret assignments and secret query parameters are covered by deterministic redaction
 - IPv4 redaction validates address ranges before replacement
+- Maven Central credentials and GPG material are supplied only through GitHub Actions secrets
 - the local HTTP server remains bound to `127.0.0.1` by default and retains request-size and content-type validation
 
 ## [0.2.0] - 2026-09-01
