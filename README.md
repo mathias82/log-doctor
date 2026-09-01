@@ -28,13 +28,11 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 
 The repository includes a multi-stage `Dockerfile` and `compose.yml` that run **Log Doctor and Ollama together**. No local Java, Maven or Ollama installation is required once Docker is available.
 
-Start everything:
-
 ```bash
 docker compose up -d --build
 ```
 
-The stack performs this startup sequence:
+Startup flow:
 
 ```text
 Ollama container
@@ -46,19 +44,17 @@ Log Doctor container starts
 Web UI on http://localhost:8080
 ```
 
-Verify the application:
+Verify and open:
 
 ```bash
 curl http://localhost:8080/api/health
 ```
 
-Then open:
-
 ```text
 http://localhost:8080
 ```
 
-Test a batch diagnosis from the host:
+Test batch diagnosis:
 
 ```bash
 curl -X POST http://localhost:8080/api/analyze/batch \
@@ -66,91 +62,65 @@ curl -X POST http://localhost:8080/api/analyze/batch \
   -d '{"log":"2026-09-01 14:32:17 ERROR request failed\njava.lang.RuntimeException: unusual distributed state transition"}'
 ```
 
-Stop the stack while keeping the downloaded Ollama model:
+Stop while keeping the model:
 
 ```bash
 docker compose down
 ```
 
-Remove the stack **and** persisted Ollama model data:
+Remove persisted model data too:
 
 ```bash
 docker compose down -v
 ```
 
-Use another model or host port without editing the file:
+Overrides:
 
 ```bash
 OLLAMA_MODEL=qwen2.5:0.5b docker compose up -d --build
 LOG_DOCTOR_PORT=9090 docker compose up -d --build
 ```
 
-Inside the Docker network, Log Doctor connects to Ollama through `http://ollama:11434`; the application container binds its web server to `0.0.0.0` so the published host port is reachable.
+Inside Docker, Log Doctor connects to `http://ollama:11434` and binds to `0.0.0.0` so the published port is reachable.
 
 ## Ollama-only Docker setup
-
-If you prefer running the Java application directly on the host, use the smaller Ollama-only Compose file:
 
 ```bash
 docker compose -f compose.ollama.yml up -d
 curl http://localhost:11434/api/tags
 ```
 
-Stop it while keeping the model:
-
 ```bash
 docker compose -f compose.ollama.yml down
 ```
 
-Remove persisted model data too:
-
-```bash
-docker compose -f compose.ollama.yml down -v
-```
+Use `down -v` to remove persisted model data.
 
 ## Run Java directly
 
-Requirements:
-
-- JDK 21
-- Maven 3.9+
-- local Ollama only when exercising LLM-backed analysis
-
-Build and run:
+Requirements: JDK 21, Maven 3.9+, and local Ollama only for LLM-backed analysis.
 
 ```bash
 mvn clean verify
-java -jar target/log-doctor-0.3.0.jar --web
+java -jar target/log-doctor-0.4.0.jar --web
 ```
 
-By default the embedded server binds only to `127.0.0.1:8080`.
-
-Custom port:
+Default bind: `127.0.0.1:8080`.
 
 ```bash
-java -jar target/log-doctor-0.3.0.jar --web --port 9090
+java -jar target/log-doctor-0.4.0.jar --web --port 9090
+java -jar target/log-doctor-0.4.0.jar --web --host 0.0.0.0
+LOG_DOCTOR_BIND_ADDRESS=0.0.0.0 java -jar target/log-doctor-0.4.0.jar --web
 ```
 
-Custom bind address:
-
-```bash
-java -jar target/log-doctor-0.3.0.jar --web --host 0.0.0.0
-```
-
-The bind address can also be supplied through:
-
-```bash
-LOG_DOCTOR_BIND_ADDRESS=0.0.0.0 java -jar target/log-doctor-0.3.0.jar --web
-```
-
-The Ollama runtime can be configured with:
+Ollama configuration:
 
 ```text
 LOG_DOCTOR_OLLAMA_URL
 LOG_DOCTOR_OLLAMA_MODEL
 ```
 
-Defaults remain `http://localhost:11434` and `qwen2.5:3b` outside the full Docker stack.
+Defaults outside the full Docker stack remain `http://localhost:11434` and `qwen2.5:3b`.
 
 ## Web dashboard
 
@@ -184,21 +154,15 @@ Correlation and root-cause scoring are heuristic evidence and do **not** prove c
 
 ## HTTP API
 
-Health:
-
 ```bash
 curl http://localhost:8080/api/health
 ```
-
-Single analysis:
 
 ```bash
 curl -X POST http://localhost:8080/api/analyze \
   -H 'Content-Type: application/json' \
   -d '{"log":"java.lang.IllegalStateException: transition not allowed"}'
 ```
-
-Batch analysis:
 
 ```bash
 curl -X POST http://localhost:8080/api/analyze/batch \
@@ -216,29 +180,27 @@ Redaction is defense in depth, not a guarantee that every possible secret format
 
 ## Real Ollama integration tests
 
-The repository contains two Docker-backed integration paths:
-
 ```bash
 LOG_DOCTOR_OLLAMA_MODEL=qwen2.5:0.5b mvn -Pollama-it verify
 ```
 
-and the full Compose stack workflow in `.github/workflows/docker-stack-e2e.yml`, which builds the application image, starts Ollama, pulls a lightweight model, checks `/api/health`, sends an unknown failure through `/api/analyze/batch`, and verifies `llmUsed=true`.
+The full Compose E2E workflow in `.github/workflows/docker-stack-e2e.yml` builds the application image, starts Ollama, pulls a lightweight model, checks `/api/health`, sends an unknown failure through `/api/analyze/batch`, verifies `llmUsed=true`, and tears the stack down.
 
 ## Maven Central
 
-Coordinates:
+Coordinates for this release:
 
 ```xml
 <dependency>
     <groupId>io.github.mathias82</groupId>
     <artifactId>log-doctor</artifactId>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
 </dependency>
 ```
 
-The artifact becomes resolvable only after the corresponding version is successfully published. Release publication uses the Sonatype Central Publisher Portal, sources/Javadocs, GPG signing and `.github/workflows/publish-maven-central.yml`.
+The artifact becomes resolvable only after the corresponding version is successfully published. Publication uses the Sonatype Central Publisher Portal, sources/Javadocs, GPG signing and `.github/workflows/publish-maven-central.yml`.
 
-Required repository secrets for publishing are `CENTRAL_USERNAME`, `CENTRAL_PASSWORD`, `GPG_PRIVATE_KEY`, and `GPG_PASSPHRASE`. Maven Central releases are immutable; never reuse a published version.
+Required repository secrets are `CENTRAL_USERNAME`, `CENTRAL_PASSWORD`, `GPG_PRIVATE_KEY`, and `GPG_PASSPHRASE`. Maven Central releases are immutable; never reuse a published version.
 
 ## Supported incidents
 
@@ -248,7 +210,7 @@ See `docs/supported-errors.md` and `docs/incidents.md` for the current rule cata
 
 ## Release notes
 
-See `CHANGELOG.md` and `docs/release-notes-0.3.0.md`.
+See `CHANGELOG.md` and `docs/release-notes-0.4.0.md`.
 
 ## Philosophy
 
@@ -257,7 +219,3 @@ See `CHANGELOG.md` and `docs/release-notes-0.3.0.md`.
 - Local-first, privacy-first
 - Evidence before causation claims
 - Production realism over demos
-
-## License
-
-Apache 2.0 License — use it, extend it, improve it.
