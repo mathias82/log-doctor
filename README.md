@@ -6,62 +6,50 @@
 
 **Deterministic + local-LLM production log diagnosis for JVM / Spring / Kafka.**
 
-Log Doctor analyzes real JVM log files, groups repeated failures, builds incident timelines, identifies likely failure chains, detects spikes, and uses deterministic diagnosis before optional local Ollama reasoning.
+Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detects spikes, scores likely failure chains, and uses deterministic diagnosis before optional local Ollama reasoning.
 
 > **Log Doctor doesn't replace an LLM. It decides what doesn't need one.**
 
-<p align="center">
-  <img src="https://cdn.simpleicons.org/openjdk/437291" alt="OpenJDK" width="52" height="52" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="https://cdn.simpleicons.org/apachemaven/C71A36" alt="Apache Maven" width="52" height="52" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="https://cdn.simpleicons.org/spring/6DB33F" alt="Spring" width="52" height="52" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="https://cdn.simpleicons.org/apachekafka/777777" alt="Apache Kafka" width="52" height="52" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="https://cdn.simpleicons.org/ollama/777777" alt="Ollama" width="52" height="52" />
-</p>
-
-<p align="center"><sub>Java 21 · Maven · Spring ecosystem · Apache Kafka · local Ollama</sub></p>
-
-## Why Log Doctor?
-
-Production logs are noisy, repeated failures hide the signal, root causes are buried in nested stack traces, and generic AI advice can be unsafe. Log Doctor is designed around four principles:
-
-- deterministic rules before AI
-- safe remediation policies before automatic fixes
-- local-first analysis with no cloud log upload
-- structured evidence instead of opaque recommendations
-
 ## Key capabilities
 
-- deterministic detection for common Spring Boot, Hibernate, Kafka, JDBC, memory and threading failures
-- multi-incident analysis with failure-block detection, fingerprinting and deduplication
-- deterministic-only batch first pass before any optional model call
-- at most one local-LLM enrichment call per unique unknown incident fingerprint in batch mode
-- grouped incident counts with severity, confidence, category, root cause, location and evidence
-- first/last occurrence timeline metadata when timestamps are available
-- timestamp-aware likely correlations and scored root-cause chain candidates
-- per-minute spike detection against the observed baseline
-- generated Markdown incident reports for investigations and postmortems
-- upload or drag-and-drop `.log` / `.txt` files directly in the web UI
-- automatic analysis immediately after a valid log file is selected
-- deterministic redaction before log context reaches the local LLM boundary
-- policy-driven fix types and explicit human-review decisions
-- local Ollama assistance for unknown or ambiguous failures
-- Docker Compose bootstrap for a persistent local Ollama model runtime
-- CLI mode plus an embedded web dashboard in the same executable JAR
-- browser-local recent-analysis history; raw logs are not persisted by the server
-- hardened local HTTP API with payload limits, JSON validation and security headers
-- Java 21 CI with unit and HTTP API tests
+- deterministic incident detection before AI
+- multi-incident failure-block parsing, fingerprinting and deduplication
+- one optional local-LLM enrichment per unique unknown fingerprint in batch mode
+- timeline, correlations, root-cause candidates and spike detection
+- structured JSON and downloadable Markdown incident reports
+- file upload / drag-and-drop web dashboard
+- deterministic sensitive-data redaction before the LLM boundary
+- explicit `NO_AUTOMATIC_FIX` safety policy for unsafe cases
+- browser-local recent-analysis history without persisting raw logs server-side
+- Docker Compose support for Ollama only or the complete Log Doctor + Ollama stack
+- real Docker/Ollama end-to-end CI coverage
 
-## Web dashboard
+## Fastest start: full Docker stack
 
-Build the project and start the embedded dashboard:
+The repository includes a multi-stage `Dockerfile` and `compose.yml` that run **Log Doctor and Ollama together**. No local Java, Maven or Ollama installation is required once Docker is available.
+
+Start everything:
 
 ```bash
-mvn clean verify
-java -jar target/log-doctor-0.3.0.jar --web
+docker compose up -d --build
+```
+
+The stack performs this startup sequence:
+
+```text
+Ollama container
+      ↓ healthy
+Model bootstrap container pulls qwen2.5:3b
+      ↓ completed
+Log Doctor container starts
+      ↓
+Web UI on http://localhost:8080
+```
+
+Verify the application:
+
+```bash
+curl http://localhost:8080/api/health
 ```
 
 Then open:
@@ -70,126 +58,107 @@ Then open:
 http://localhost:8080
 ```
 
-Use a custom port with either form:
+Test a batch diagnosis from the host:
 
 ```bash
-java -jar target/log-doctor-0.3.0.jar --web --port 9090
-java -jar target/log-doctor-0.3.0.jar --web --port=9090
+curl -X POST http://localhost:8080/api/analyze/batch \
+  -H 'Content-Type: application/json' \
+  -d '{"log":"2026-09-01 14:32:17 ERROR request failed\njava.lang.RuntimeException: unusual distributed state transition"}'
 ```
 
-### Upload a log file and get the diagnosis
-
-The web UI is file-first. A user can click the upload area or drag a `.log` / `.txt` file into it. The browser reads the file locally and starts analysis automatically.
-
-```text
-Select / drop log file
-        ↓
-Read text locally in the browser
-        ↓
-POST { "log": "..." } to /api/analyze/batch
-        ↓
-Failure-block detection
-        ↓
-Deterministic-only diagnosis per block
-        ↓
-Fingerprinting + grouping + timeline
-        ↓
-Optional LLM enrichment once per unique unknown group
-        ↓
-Correlation + root-cause scoring + spikes
-        ↓
-Structured dashboard + Markdown report
-```
-
-Supported upload behavior:
-
-- `.log`, `.txt`, and `text/plain`
-- maximum log size: 5 MB
-- empty and unsupported files are rejected before analysis
-- selected filename, size, and analysis status are shown in the UI
-- manual paste + **Analyze pasted logs** remains available
-- uploaded files are not persisted on the server
-- batch analysis processes up to 500 detected failure blocks and reports when analysis is truncated
-
-### Dashboard preview
-
-<p align="center">
-  <img src="docs/images/dashboard-preview.svg" alt="Log Doctor web UI showing uploaded log file analysis and structured diagnosis results" width="1000" />
-</p>
-
-The dashboard includes:
-
-- total lines, analyzed failures and unique incident groups
-- investigation order
-- likely correlations
-- scored root-cause chain candidates
-- incident spikes
-- per-incident timeline, root cause and remediation
-- raw structured batch result
-- downloadable Markdown incident report
-- the 10 most recent analyses stored only in browser `localStorage`
-
-## CLI usage
-
-Analyze a log file directly:
+Stop the stack while keeping the downloaded Ollama model:
 
 ```bash
-java -jar target/log-doctor-0.3.0.jar --file examples/app.log
+docker compose down
 ```
 
-The CLI remains supported while the web dashboard exposes the richer batch-analysis model.
-
-## Local Ollama setup
-
-Install Ollama, pull the configured model, and start the local service:
+Remove the stack **and** persisted Ollama model data:
 
 ```bash
-ollama pull qwen2.5:3b
-ollama serve
+docker compose down -v
 ```
 
-Ollama normally listens on:
+Use another model or host port without editing the file:
 
-```text
-http://localhost:11434
+```bash
+OLLAMA_MODEL=qwen2.5:0.5b docker compose up -d --build
+LOG_DOCTOR_PORT=9090 docker compose up -d --build
 ```
 
-Log Doctor does not require a cloud LLM API. If Ollama is unavailable, deterministic diagnosis remains authoritative and unknown incidents fall back safely to human review. In batch mode repeated unknown failures are fingerprinted before model enrichment, so a repeated incident group does not trigger one model request per occurrence.
+Inside the Docker network, Log Doctor connects to Ollama through `http://ollama:11434`; the application container binds its web server to `0.0.0.0` so the published host port is reachable.
 
-### Run Ollama with Docker Compose
+## Ollama-only Docker setup
 
-If you prefer not to install Ollama directly, the repository includes `compose.ollama.yml`. It starts the official Ollama container, persists downloaded models in a named volume, waits for the service to become healthy, and pulls the configured `qwen2.5:3b` model automatically.
+If you prefer running the Java application directly on the host, use the smaller Ollama-only Compose file:
 
 ```bash
 docker compose -f compose.ollama.yml up -d
-```
-
-Verify that Ollama is reachable from Log Doctor:
-
-```bash
 curl http://localhost:11434/api/tags
 ```
 
-Stop the containers while keeping the downloaded model:
+Stop it while keeping the model:
 
 ```bash
 docker compose -f compose.ollama.yml down
 ```
 
-Remove the containers and persisted model data:
+Remove persisted model data too:
 
 ```bash
 docker compose -f compose.ollama.yml down -v
 ```
 
-The defaults can be overridden without editing the compose file:
+## Run Java directly
+
+Requirements:
+
+- JDK 21
+- Maven 3.9+
+- local Ollama only when exercising LLM-backed analysis
+
+Build and run:
 
 ```bash
-OLLAMA_MODEL=qwen2.5:7b docker compose -f compose.ollama.yml up -d
-OLLAMA_IMAGE=ollama/ollama:latest docker compose -f compose.ollama.yml up -d
+mvn clean verify
+java -jar target/log-doctor-0.3.0.jar --web
 ```
 
-The Log Doctor Java process can continue to run directly on the host because the container exposes Ollama on `localhost:11434`.
+By default the embedded server binds only to `127.0.0.1:8080`.
+
+Custom port:
+
+```bash
+java -jar target/log-doctor-0.3.0.jar --web --port 9090
+```
+
+Custom bind address:
+
+```bash
+java -jar target/log-doctor-0.3.0.jar --web --host 0.0.0.0
+```
+
+The bind address can also be supplied through:
+
+```bash
+LOG_DOCTOR_BIND_ADDRESS=0.0.0.0 java -jar target/log-doctor-0.3.0.jar --web
+```
+
+The Ollama runtime can be configured with:
+
+```text
+LOG_DOCTOR_OLLAMA_URL
+LOG_DOCTOR_OLLAMA_MODEL
+```
+
+Defaults remain `http://localhost:11434` and `qwen2.5:3b` outside the full Docker stack.
+
+## Web dashboard
+
+The file-first UI accepts `.log`, `.txt`, and `text/plain` inputs up to 5 MB. Files are read by the browser and sent as JSON for analysis; they are not persisted by the server.
+
+Batch analysis processes up to 500 detected failure blocks and reports `truncated=true` when the cap is exceeded. Clean logs return zero detected failure blocks instead of a synthetic incident.
+
+The dashboard shows incident grouping, severity/confidence/category, evidence, timeline, investigation order, likely correlations, scored root-cause chain candidates, spikes, raw structured JSON and a downloadable Markdown incident report.
 
 ## Analysis flow
 
@@ -211,27 +180,17 @@ Root-cause scoring + spike detection
 Structured JSON + Web UI + Markdown report
 ```
 
-Unknown or ambiguous failures may use local Ollama after sensitive prompt data is redacted. Correlation and chain scoring are heuristic evidence and do **not** prove causation.
-
-## Fix safety
-
-Every deterministic incident is constrained by `FixPolicy`. Some classes of failure intentionally result in `NO_AUTOMATIC_FIX` and require human investigation.
-
-```text
-No safe automatic fix, human investigation required.
-```
-
-Refusing to guess is part of the product behavior.
+Correlation and root-cause scoring are heuristic evidence and do **not** prove causation.
 
 ## HTTP API
 
-Health check:
+Health:
 
 ```bash
 curl http://localhost:8080/api/health
 ```
 
-Analyze a single log payload:
+Single analysis:
 
 ```bash
 curl -X POST http://localhost:8080/api/analyze \
@@ -239,7 +198,7 @@ curl -X POST http://localhost:8080/api/analyze \
   -d '{"log":"java.lang.IllegalStateException: transition not allowed"}'
 ```
 
-Analyze a real log stream with grouping, timeline, correlations, spikes and report generation:
+Batch analysis:
 
 ```bash
 curl -X POST http://localhost:8080/api/analyze/batch \
@@ -247,24 +206,27 @@ curl -X POST http://localhost:8080/api/analyze/batch \
   -d '{"log":"2026-09-01 14:32:17 ERROR request failed\njava.lang.RuntimeException: boom"}'
 ```
 
-The API accepts JSON only, enforces the 5 MB decoded-log limit, and binds to `127.0.0.1` by default.
+The API accepts JSON only and enforces a 5 MB decoded-log limit.
 
 ## Sensitive-data redaction
 
-Before log context reaches the local LLM boundary, Log Doctor performs deterministic best-effort redaction for common sensitive values including:
+Before context reaches the local LLM boundary, Log Doctor performs deterministic best-effort redaction for common bearer tokens/JWTs, passwords, secrets, API keys, access/refresh tokens, sensitive query parameters, email addresses and IPv4 addresses.
 
-- bearer tokens and JWTs
-- passwords and secrets
-- API keys, access tokens and refresh tokens
-- secret query-string parameters
-- email addresses
-- IPv4 addresses
+Redaction is defense in depth, not a guarantee that every possible secret format will be detected.
 
-Redaction is a defense-in-depth measure, not a guarantee that every possible secret format will be detected.
+## Real Ollama integration tests
+
+The repository contains two Docker-backed integration paths:
+
+```bash
+LOG_DOCTOR_OLLAMA_MODEL=qwen2.5:0.5b mvn -Pollama-it verify
+```
+
+and the full Compose stack workflow in `.github/workflows/docker-stack-e2e.yml`, which builds the application image, starts Ollama, pulls a lightweight model, checks `/api/health`, sends an unknown failure through `/api/analyze/batch`, and verifies `llmUsed=true`.
 
 ## Maven Central
 
-The project is configured for Maven Central publishing with these coordinates:
+Coordinates:
 
 ```xml
 <dependency>
@@ -274,73 +236,19 @@ The project is configured for Maven Central publishing with these coordinates:
 </dependency>
 ```
 
-The dependency becomes resolvable from Maven Central only after the corresponding version has been successfully published. Release publishing is intentionally separate from normal CI.
+The artifact becomes resolvable only after the corresponding version is successfully published. Release publication uses the Sonatype Central Publisher Portal, sources/Javadocs, GPG signing and `.github/workflows/publish-maven-central.yml`.
 
-Publishing uses the Sonatype Central Publisher Portal and the `central-publishing-maven-plugin`. The `central` Maven profile also attaches source and Javadoc JARs and signs release artifacts with GPG. A pushed release tag such as `v0.3.0` triggers `.github/workflows/publish-maven-central.yml`, verifies that the tag matches the POM version, runs the test suite, and then publishes the signed bundle.
-
-Before the first publish, the repository owner must complete the one-time publisher setup:
-
-1. create/sign in to the Sonatype Central Publisher Portal and verify the `io.github.mathias82` namespace;
-2. generate a Central Portal user token;
-3. configure a GPG signing key whose public key is available to signature-verification infrastructure;
-4. add these GitHub Actions repository secrets: `CENTRAL_USERNAME`, `CENTRAL_PASSWORD`, `GPG_PRIVATE_KEY`, and `GPG_PASSPHRASE`;
-5. merge the publishing configuration, verify `main`, then create the version tag only when the release is ready to be immutable.
-
-Do not reuse a published Maven Central version: Central releases are immutable. Increment the project version for every subsequent release.
-
-## Build and test
-
-Requirements:
-
-- JDK 21
-- Maven 3.9+
-- Docker with Compose support when using containerized Ollama
-- Ollama only when exercising LLM-backed analysis
-
-Run the full verification suite:
-
-```bash
-mvn clean verify
-```
-
-GitHub Actions runs the same verification flow for pushes and pull requests targeting `main`.
+Required repository secrets for publishing are `CENTRAL_USERNAME`, `CENTRAL_PASSWORD`, `GPG_PRIVATE_KEY`, and `GPG_PASSPHRASE`. Maven Central releases are immutable; never reuse a published version.
 
 ## Supported incidents
 
-Representative deterministic rules include:
+Representative deterministic rules include Hibernate `LazyInitializationException`, Spring bean/profile/configuration problems, Jackson/JSON deserialization failures, Kafka topic/schema failures, HikariCP timeouts, deadlocks/thread starvation, `OutOfMemoryError`, GC thrashing and common Java runtime exceptions.
 
-- Hibernate `LazyInitializationException`
-- Spring `NoSuchBeanDefinitionException`
-- Spring profile/configuration mismatches
-- Jackson / JSON deserialization failures
-- Kafka topic and schema failures
-- HikariCP timeouts
-- deadlocks and thread starvation
-- `OutOfMemoryError`
-- GC thrashing
-
-See [Supported Errors](docs/supported-errors.md) and [Detailed Incident Breakdown](docs/incidents.md) for the current rule catalog.
-
-## Project structure
-
-```text
-src/main/java/io/github/mathias82/logdoctor/
-├── cli/
-├── core/
-├── engine/
-├── llm/
-├── rules/
-└── web/
-
-src/main/resources/web/
-├── index.html
-├── app.css
-└── app.js
-```
+See `docs/supported-errors.md` and `docs/incidents.md` for the current rule catalog.
 
 ## Release notes
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and [0.3.0 release notes](docs/release-notes-0.3.0.md) for the current release summary.
+See `CHANGELOG.md` and `docs/release-notes-0.3.0.md`.
 
 ## Philosophy
 
