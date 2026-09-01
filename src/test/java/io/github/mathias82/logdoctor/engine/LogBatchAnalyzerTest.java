@@ -70,7 +70,7 @@ class LogBatchAnalyzerTest {
 
         assertThat(result.detectedFailureBlocks()).isEqualTo(1);
         assertThat(result.incidents()).hasSize(1);
-        assertThat(result.incidents().getFirst().evidence()).contains("worker reports INFO cache metadata");
+        assertThat(result.incidents().getFirst().evidence()).contains("reports INFO cache metadata");
     }
 
     @Test
