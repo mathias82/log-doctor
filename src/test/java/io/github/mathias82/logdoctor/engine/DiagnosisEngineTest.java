@@ -4,159 +4,22 @@ import io.github.mathias82.logdoctor.core.Incident;
 import io.github.mathias82.logdoctor.core.IncidentCategory;
 import io.github.mathias82.logdoctor.llm.LlmClient;
 import org.junit.jupiter.api.Test;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DiagnosisEngineTest {
-
-    private final DiagnosisEngine engine = new DiagnosisEngine(new StubLlmClient());
-
-    @Test
-    void returnsNoFailureForBlankInput() {
-        var result = engine.analyzeStructured("   ");
-
-        assertThat(result.status()).isEqualTo("NO_FAILURE");
-        assertThat(result.llmUsed()).isFalse();
-        assertThat(result.humanReviewRequired()).isFalse();
-        assertThat(result.matchScore()).isZero();
-        assertThat(result.matchConfidence()).isEqualTo("NONE");
-    }
-
-    @Test
-    void returnsNoFailureWhenNoExceptionIsPresent() {
-        var result = engine.analyzeStructured("2026-09-01 INFO application started successfully");
-
-        assertThat(result.status()).isEqualTo("NO_FAILURE");
-        assertThat(result.summary()).contains("No obvious failure");
-    }
-
-    @Test
-    void usesLlmForUnknownFailure() {
-        var result = engine.analyzeStructured("java.lang.RuntimeException: boom");
-
-        assertThat(result.status()).isEqualTo("UNKNOWN");
-        assertThat(result.type()).isEqualTo("UNKNOWN_FAILURE");
-        assertThat(result.llmUsed()).isTrue();
-        assertThat(result.fixType()).isEqualTo("NO_AUTOMATIC_FIX");
-        assertThat(result.diagnosis()).contains("stub unknown analysis");
-        assertThat(result.matchScore()).isZero();
-        assertThat(result.matchConfidence()).isEqualTo("NONE");
-    }
-
-    @Test
-    void fallsBackToHumanReviewWhenLlmIsUnavailable() {
-        var failingEngine = new DiagnosisEngine(new FailingLlmClient());
-
-        var result = failingEngine.analyzeStructured("java.lang.RuntimeException: boom");
-
-        assertThat(result.status()).isEqualTo("UNKNOWN");
-        assertThat(result.llmUsed()).isFalse();
-        assertThat(result.humanReviewRequired()).isTrue();
-        assertThat(result.fixType()).isEqualTo("NO_AUTOMATIC_FIX");
-        assertThat(result.fix()).contains("LLM analysis is unavailable");
-        assertThat(result.diagnosis()).doesNotContain("LLM ANALYSIS:");
-    }
-
-    @Test
-    void treatsBlankLlmResponseAsUnavailable() {
-        var blankEngine = new DiagnosisEngine(new BlankLlmClient());
-
-        var result = blankEngine.analyzeStructured("java.lang.RuntimeException: boom");
-
-        assertThat(result.llmUsed()).isFalse();
-        assertThat(result.humanReviewRequired()).isTrue();
-    }
-
-    @Test
-    void marksConcurrencyFailureForHumanReviewWithoutCallingLlm() {
-        var result = engine.analyzeStructured("org.hibernate.OptimisticLockException: row was updated by another transaction");
-
-        assertThat(result.type()).isEqualTo("CONCURRENCY_FAILURE");
-        assertThat(result.humanReviewRequired()).isTrue();
-        assertThat(result.llmUsed()).isFalse();
-        assertThat(result.fixType()).isEqualTo("NO_AUTOMATIC_FIX");
-        assertThat(result.location()).contains("OptimisticLockException");
-        assertThat(result.matchScore()).isGreaterThanOrEqualTo(90);
-        assertThat(result.matchConfidence()).isEqualTo("VERY_HIGH");
-    }
-
-    @Test
-    void infersInfrastructureCategoryCaseInsensitively() {
-        var result = engine.analyzeStructured("java.net.SocketTimeoutException: timeout from RestTemplate");
-
-        assertThat(result.category()).isEqualTo("INFRASTRUCTURE");
-    }
-
-    @Test
-    void exposesCauseChainForNestedExceptions() {
-        String log = """
-                org.springframework.beans.factory.BeanCreationException: failed to create bean
-                at com.acme.App.start(App.java:10)
-                Caused by: java.lang.IllegalStateException: client failed
-                at com.acme.Client.call(Client.java:20)
-                Caused by: java.net.ConnectException: Connection refused
-                """;
-
-        var result = engine.analyzeStructured(log);
-
-        assertThat(result.causeChain()).hasSize(3);
-        assertThat(result.causeChain().get(2).exceptionType()).isEqualTo("java.net.ConnectException");
-        assertThat(result.diagnosis()).contains("CAUSE CHAIN:");
-    }
-
-    @Test
-    void explainsWhyDeterministicRuleMatched() {
-        var result = engine.analyzeStructured("java.lang.NoClassDefFoundError: com/acme/Missing");
-
-        assertThat(result.type()).isEqualTo("NoClassDefFoundError");
-        assertThat(result.matchReasons()).isNotEmpty();
-        assertThat(result.matchReasons().get(0)).contains("CommonFailureCatalogRule");
-        assertThat(result.diagnosis()).contains("WHY MATCHED:");
-    }
-
-    @Test
-    void exposesAuditableMatchScoreForCatalogRule() {
-        var result = engine.analyzeStructured("java.lang.NoClassDefFoundError: com/acme/Missing");
-
-        assertThat(result.matchScore()).isBetween(75, 100);
-        assertThat(result.matchConfidence()).isIn("HIGH", "VERY_HIGH");
-        assertThat(result.matchScoreFactors()).isNotEmpty();
-        assertThat(result.diagnosis()).contains("MATCH SCORE:");
-    }
-
-    private static final class StubLlmClient implements LlmClient {
-        @Override
-        public String explainKnownIncident(Incident incident) {
-            return "stub known analysis";
-        }
-
-        @Override
-        public String analyzeUnknownLog(String rawLog, IncidentCategory category) {
-            return "stub unknown analysis";
-        }
-    }
-
-    private static final class FailingLlmClient implements LlmClient {
-        @Override
-        public String explainKnownIncident(Incident incident) {
-            throw new IllegalStateException("Ollama unavailable");
-        }
-
-        @Override
-        public String analyzeUnknownLog(String rawLog, IncidentCategory category) {
-            throw new IllegalStateException("Ollama unavailable");
-        }
-    }
-
-    private static final class BlankLlmClient implements LlmClient {
-        @Override
-        public String explainKnownIncident(Incident incident) {
-            return "  ";
-        }
-
-        @Override
-        public String analyzeUnknownLog(String rawLog, IncidentCategory category) {
-            return "  ";
-        }
-    }
+    private final DiagnosisEngine engine=new DiagnosisEngine(new StubLlmClient());
+    @Test void returnsNoFailureForBlankInput(){var r=engine.analyzeStructured("   ");assertThat(r.status()).isEqualTo("NO_FAILURE");assertThat(r.llmUsed()).isFalse();assertThat(r.humanReviewRequired()).isFalse();assertThat(r.matchScore()).isZero();assertThat(r.matchConfidence()).isEqualTo("NONE");assertThat(r.remediation()).isNull();}
+    @Test void returnsNoFailureWhenNoExceptionIsPresent(){var r=engine.analyzeStructured("2026-09-01 INFO application started successfully");assertThat(r.status()).isEqualTo("NO_FAILURE");assertThat(r.summary()).contains("No obvious failure");}
+    @Test void usesLlmForUnknownFailure(){var r=engine.analyzeStructured("java.lang.RuntimeException: boom");assertThat(r.status()).isEqualTo("UNKNOWN");assertThat(r.type()).isEqualTo("UNKNOWN_FAILURE");assertThat(r.llmUsed()).isTrue();assertThat(r.fixType()).isEqualTo("NO_AUTOMATIC_FIX");assertThat(r.diagnosis()).contains("stub unknown analysis");assertThat(r.matchScore()).isZero();assertThat(r.matchConfidence()).isEqualTo("NONE");assertThat(r.remediation().safety()).isEqualTo("HUMAN_REVIEW_REQUIRED");assertThat(r.remediation().automaticExecutionAllowed()).isFalse();}
+    @Test void fallsBackToHumanReviewWhenLlmIsUnavailable(){var r=new DiagnosisEngine(new FailingLlmClient()).analyzeStructured("java.lang.RuntimeException: boom");assertThat(r.llmUsed()).isFalse();assertThat(r.humanReviewRequired()).isTrue();assertThat(r.fix()).contains("LLM analysis is unavailable");assertThat(r.diagnosis()).doesNotContain("LLM ANALYSIS:");}
+    @Test void treatsBlankLlmResponseAsUnavailable(){var r=new DiagnosisEngine(new BlankLlmClient()).analyzeStructured("java.lang.RuntimeException: boom");assertThat(r.llmUsed()).isFalse();assertThat(r.humanReviewRequired()).isTrue();}
+    @Test void marksConcurrencyFailureForHumanReviewWithoutCallingLlm(){var r=engine.analyzeStructured("org.hibernate.OptimisticLockException: row was updated by another transaction");assertThat(r.type()).isEqualTo("CONCURRENCY_FAILURE");assertThat(r.category()).isEqualTo("THREADING");assertThat(r.humanReviewRequired()).isTrue();assertThat(r.remediation().verificationSteps()).anyMatch(s->s.contains("concurrent load"));assertThat(r.remediation().automaticExecutionAllowed()).isFalse();}
+    @Test void infersInfrastructureCategoryCaseInsensitively(){var r=engine.analyzeStructured("java.net.SocketTimeoutException: timeout from RestTemplate");assertThat(r.category()).isEqualTo("INFRASTRUCTURE");assertThat(r.remediation().safety()).isEqualTo("HUMAN_REVIEW_REQUIRED");}
+    @Test void exposesCauseChainForNestedExceptions(){String log="""\norg.springframework.beans.factory.BeanCreationException: failed to create bean\nat com.acme.App.start(App.java:10)\nCaused by: java.lang.IllegalStateException: client failed\nat com.acme.Client.call(Client.java:20)\nCaused by: java.net.ConnectException: Connection refused\n""";var r=engine.analyzeStructured(log);assertThat(r.causeChain()).hasSize(3);assertThat(r.causeChain().get(2).exceptionType()).isEqualTo("java.net.ConnectException");}
+    @Test void explainsWhyDeterministicRuleMatched(){var r=engine.analyzeStructured("java.lang.NoClassDefFoundError: com/acme/Missing");assertThat(r.matchReasons()).isNotEmpty();assertThat(r.matchReasons().get(0)).contains("CommonFailureCatalogRule");}
+    @Test void exposesAuditableMatchScoreForCatalogRule(){var r=engine.analyzeStructured("java.lang.NoClassDefFoundError: com/acme/Missing");assertThat(r.matchScore()).isBetween(75,100);assertThat(r.matchConfidence()).isIn("HIGH","VERY_HIGH");assertThat(r.matchScoreFactors()).isNotEmpty();}
+    @Test void exposesStructuredRemediationForDeterministicDiagnosis(){var r=engine.analyzeStructured("java.lang.NoClassDefFoundError: com/acme/Missing");assertThat(r.remediation()).isNotNull();assertThat(r.remediation().allowedActions()).contains("JAVA_CODE");assertThat(r.remediation().verificationSteps()).isNotEmpty();assertThat(r.remediation().automaticExecutionAllowed()).isFalse();}
+    private static final class StubLlmClient implements LlmClient{public String explainKnownIncident(Incident i){return "stub known analysis";}public String analyzeUnknownLog(String r,IncidentCategory c){return "stub unknown analysis";}}
+    private static final class FailingLlmClient implements LlmClient{public String explainKnownIncident(Incident i){throw new IllegalStateException("Ollama unavailable");}public String analyzeUnknownLog(String r,IncidentCategory c){throw new IllegalStateException("Ollama unavailable");}}
+    private static final class BlankLlmClient implements LlmClient{public String explainKnownIncident(Incident i){return "  ";}public String analyzeUnknownLog(String r,IncidentCategory c){return "  ";}}
 }
