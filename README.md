@@ -25,6 +25,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
 - versioned HTTP API contract signal for CI/CD, monitoring and external integrations
 - full specialized Kafka operational diagnostic matrix with Schema Registry context guards and negative cases
+- release provenance, CycloneDX SBOM attestation, SHA-256 integrity metadata and pull-request dependency review
 - structured remediation metadata returned by both single and grouped diagnosis APIs
 - remediation safety state, allowed action types and incident-aware verification steps
 - typed remediation profiles centralize incident-to-guidance routing so playbooks and verification cannot drift independently
@@ -133,6 +134,12 @@ See [docs/custom-rule-providers.md](docs/custom-rule-providers.md).
 ## Rule quality matrix
 
 `DeterministicRuleQualityMatrixTest` protects specialized-rule precedence and representative benign negatives. See [docs/rule-quality-matrix.md](docs/rule-quality-matrix.md).
+
+## Supply-chain security
+
+Tag-triggered releases carry GitHub build provenance plus a CycloneDX JSON SBOM attestation. Release integrity artifacts include `SHA256SUMS` and the generated SBOM. Pull requests targeting `main` also run dependency review and fail on newly introduced high/critical vulnerabilities or denied GPL-3.0/AGPL-3.0 licenses.
+
+Consumers can verify a downloaded release JAR with `gh attestation verify <jar> --repo mathias82/log-doctor`. See [docs/supply-chain-security.md](docs/supply-chain-security.md) for the complete verification model and limitations.
 
 ## Maven Central
 
