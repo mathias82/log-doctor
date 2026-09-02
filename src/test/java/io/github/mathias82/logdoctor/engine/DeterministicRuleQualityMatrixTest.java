@@ -21,11 +21,13 @@ class DeterministicRuleQualityMatrixTest {
                 new Case("Hibernate lazy init", "org.hibernate.LazyInitializationException: could not initialize proxy - no Session", "HibernateLazyInitRule"),
                 new Case("Hikari timeout", "HikariPool-1 - Connection is not available, request timed out after 30000ms", "HikariTimeoutRule"),
                 new Case("Spring bind failure", "Failed to bind properties under 'server.port' to java.lang.Integer", "SpringConfigBindRule"),
-                new Case("Spring missing bean", "org.springframework.beans.factory.NoSuchBeanDefinitionException: No qualifying bean of type 'com.acme.PaymentClient' available", "MissingSpringBeanRule"),
+                new Case("Spring missing bean", "Parameter 0 of constructor in com.acme.OrderService required a bean of type 'com.acme.PaymentClient' that could not be found.", "MissingSpringBeanRule"),
+                new Case("Spring profile bean resolution", "org.springframework.beans.factory.NoSuchBeanDefinitionException: No qualifying bean of type 'com.acme.PaymentClient' available", "SpringProfileMismatchRule"),
                 new Case("Spring Boot startup analysis", "APPLICATION FAILED TO START\n\nDescription:\nApplication context could not start.\n\nAction:\nCheck configuration.", "SpringBootStartupFailureRule"),
                 new Case("JPA optimistic locking", "jakarta.persistence.OptimisticLockException: Row was updated or deleted by another transaction", "PersistenceConcurrencyRule"),
                 new Case("Kafka authorization", "org.apache.kafka.common.errors.TopicAuthorizationException: Not authorized to access topics: [orders]", "KafkaOperationalFailureRule"),
-                new Case("Kafka rebalance", "org.apache.kafka.clients.consumer.CommitFailedException: Commit cannot be completed since the group has already rebalanced", "KafkaOperationalFailureRule"),
+                new Case("Kafka rebalance in progress", "org.apache.kafka.common.errors.RebalanceInProgressException: The group is rebalancing, so a rejoin is needed", "KafkaOperationalFailureRule"),
+                new Case("Kafka commit after rebalance", "org.apache.kafka.clients.consumer.CommitFailedException: Commit cannot be completed since the group has already rebalanced", "CommonFailureCatalogRule"),
                 new Case("Kafka unknown topic", "org.apache.kafka.common.errors.UnknownTopicOrPartitionException: This server does not host this topic-partition", "KafkaOperationalFailureRule")
         ).stream().map(testCase -> DynamicTest.dynamicTest(testCase.name(), () -> {
             var detection = detector.detectDetailed(context(testCase.log()));
