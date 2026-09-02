@@ -19,7 +19,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - Spring Boot startup failure-analysis extraction with `Description` / `Action` guidance
 - deterministic nested exception cause-chain extraction
 - explicit `WHY MATCHED` explanations and auditable 0-100 match-strength scoring
-- stack-trace-aware grouping with dashboard grouping explainability
+- stack-trace-aware grouping with deepest-cause frame association, module/native frame support and dashboard grouping explainability
 - structured remediation metadata returned by both single and grouped diagnosis APIs
 - remediation safety state, allowed action types and incident-aware verification steps
 - structured investigation-first remediation playbooks with inspect, change-candidate, validation and escalation phases
@@ -65,6 +65,8 @@ For known deterministic incidents, remediation can be more specific than the bro
 Unknown, infrastructure, business and other protected cases remain human-review-only. Automatic execution is currently always `false`.
 
 The dashboard shows match evidence, grouping signature, cause chain, remediation guardrails and playbooks, provenance, timeline, investigation order, correlations, root-cause candidates and spikes.
+
+Stack-aware grouping associates the selected deepest visible exception/error/throwable with its own first frames, ignores source line numbers, handles module-qualified frames plus `Native Method` / `Unknown Source`, and ignores suppressed failures when selecting the grouping cause. See [docs/stack-trace-fingerprinting.md](docs/stack-trace-fingerprinting.md).
 
 ## API
 

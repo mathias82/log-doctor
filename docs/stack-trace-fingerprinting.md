@@ -1,15 +1,18 @@
 # Stack-trace-aware incident grouping
 
-Log Doctor groups repeated failure blocks before optional Ollama enrichment. Grouping now uses the existing normalized diagnosis fingerprint plus a stable stack-trace signature when a stack trace is present.
+Log Doctor groups repeated failure blocks before optional Ollama enrichment. Grouping uses the normalized diagnosis fingerprint plus a stable stack-trace signature when a stack trace is present.
 
 ## Signature
 
 The stack signature uses:
 
-- the deepest visible exception/error type
-- up to the first three stack frames
-- class, method and source file name
+- the deepest visible `Exception`, `Error`, or `Throwable` type
+- up to the first three frames belonging to that deepest visible cause
+- class, method and source identity
 - no source line numbers
+- support for module-qualified JVM frames such as `java.base/java.lang.Thread.run(...)`
+- stable handling of `Native Method` and `Unknown Source`
+- suppressed failures do not replace the selected cause
 
 For example, these frames produce the same stack signature even when a new build changes line numbers:
 
@@ -23,6 +26,8 @@ at com.acme.OrderService.load(OrderService.java:97)
 at com.acme.OrderController.get(OrderController.java:33)
 ```
 
+For nested failures, frames are associated with the deepest visible cause instead of combining the deepest exception type with frames from the outer wrapper. This makes the grouping identity internally consistent.
+
 A failure from a different call path, such as `PaymentService.charge`, receives a different fingerprint even when the deterministic diagnosis type and root-cause text are identical.
 
 ## Why
@@ -31,4 +36,4 @@ Root-cause normalization already removes volatile IDs, numbers and UUIDs. That i
 
 ## Safety and fallback
 
-If no exception/error or stack frame is available, grouping falls back to the previous diagnosis fingerprint. Stack signatures are deterministic and local; they do not add an LLM call or send any additional data outside the existing analysis path.
+If no recognized exception/error/throwable signal is available, grouping falls back to the previous diagnosis fingerprint. Stack signatures are deterministic and local; they do not add an LLM call or send any additional data outside the existing analysis path.

@@ -7,25 +7,49 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class StackTraceFingerprint {
-    private static final Pattern FRAME = Pattern.compile("^\\s*at\\s+([\\w.$]+)\\(([^:()]+)(?::\\d+)?\\)\\s*$");
-    private static final Pattern EXCEPTION = Pattern.compile("(?:Caused by:\\s*)?([\\w.$]+(?:Exception|Error))(?::.*)?$");
+    private static final Pattern FRAME = Pattern.compile("^\\s*at\\s+(?:[\\w.$-]+/)?([\\w.$]+)\\(([^()]*)\\)\\s*$");
+    private static final Pattern EXCEPTION = Pattern.compile("(?:Caused by:\\s*)?([\\w.$]+(?:Exception|Error|Throwable))(?::.*)?$");
     private static final int MAX_FRAMES = 3;
 
     private StackTraceFingerprint() {}
 
     static String signature(String rawLog) {
         if (rawLog == null || rawLog.isBlank()) return "";
+
+        String currentException = "";
         String deepestException = "";
-        List<String> frames = new ArrayList<>();
+        List<String> currentFrames = new ArrayList<>();
+        List<String> deepestFrames = new ArrayList<>();
+
         for (String line : rawLog.lines().toList()) {
-            Matcher exception = EXCEPTION.matcher(line.trim());
-            if (exception.find()) deepestException = exception.group(1).toLowerCase(Locale.ROOT);
+            String trimmed = line.trim();
+            if (trimmed.startsWith("Suppressed:")) continue;
+
+            Matcher exception = EXCEPTION.matcher(trimmed);
+            if (exception.find()) {
+                currentException = exception.group(1).toLowerCase(Locale.ROOT);
+                deepestException = currentException;
+                currentFrames = new ArrayList<>();
+                deepestFrames = currentFrames;
+                continue;
+            }
+
             Matcher frame = FRAME.matcher(line);
-            if (frame.matches() && frames.size() < MAX_FRAMES) {
-                frames.add((frame.group(1) + "(" + frame.group(2) + ")").toLowerCase(Locale.ROOT));
+            if (frame.matches() && !currentException.isBlank() && currentFrames.size() < MAX_FRAMES) {
+                currentFrames.add(normalizeFrame(frame.group(1), frame.group(2)));
             }
         }
-        if (deepestException.isBlank() && frames.isEmpty()) return "";
-        return deepestException + "|" + String.join(">", frames);
+
+        if (deepestException.isBlank()) return "";
+        return deepestException + "|" + String.join(">", deepestFrames);
+    }
+
+    private static String normalizeFrame(String method, String source) {
+        String normalizedSource = source.trim();
+        if (normalizedSource.equals("Native Method") || normalizedSource.equals("Unknown Source")) {
+            return (method + "(" + normalizedSource + ")").toLowerCase(Locale.ROOT);
+        }
+        normalizedSource = normalizedSource.replaceFirst(":\\d+$", "");
+        return (method + "(" + normalizedSource + ")").toLowerCase(Locale.ROOT);
     }
 }

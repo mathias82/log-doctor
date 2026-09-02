@@ -39,15 +39,56 @@ class StackTraceFingerprintTest {
     }
 
     @Test
-    void usesDeepestVisibleExceptionType() {
+    void associatesFramesWithDeepestVisibleCause() {
         String log = """
                 java.lang.IllegalStateException: wrapper
                     at com.acme.OrderService.load(OrderService.java:41)
+                    at com.acme.OrderController.get(OrderController.java:18)
+                Caused by: java.net.SocketTimeoutException: timed out
+                    at com.acme.Client.call(Client.java:21)
+                    at com.acme.HttpTransport.send(HttpTransport.java:12)
+                """;
+
+        assertThat(StackTraceFingerprint.signature(log))
+                .isEqualTo("java.net.sockettimeoutexception|com.acme.client.call(client.java)>com.acme.httptransport.send(httptransport.java)");
+    }
+
+    @Test
+    void supportsThrowableTypes() {
+        String log = """
+                com.acme.FatalThrowable: fatal
+                    at com.acme.Worker.run(Worker.java:8)
+                """;
+
+        assertThat(StackTraceFingerprint.signature(log)).startsWith("com.acme.fatalthrowable|");
+    }
+
+    @Test
+    void supportsNativeAndUnknownSourceFrames() {
+        String log = """
+                java.lang.IllegalStateException: boom
+                    at java.base/java.lang.Thread.run(Native Method)
+                    at com.acme.Generated.invoke(Unknown Source)
+                """;
+
+        assertThat(StackTraceFingerprint.signature(log))
+                .contains("java.lang.thread.run(native method)")
+                .contains("com.acme.generated.invoke(unknown source)");
+    }
+
+    @Test
+    void ignoresSuppressedExceptionWhenChoosingDeepestCause() {
+        String log = """
+                java.lang.IllegalStateException: wrapper
+                    at com.acme.OrderService.load(OrderService.java:41)
+                Suppressed: java.io.IOException: cleanup failed
+                    at com.acme.Cleanup.close(Cleanup.java:7)
                 Caused by: java.net.SocketTimeoutException: timed out
                     at com.acme.Client.call(Client.java:21)
                 """;
 
-        assertThat(StackTraceFingerprint.signature(log)).startsWith("java.net.sockettimeoutexception|");
+        assertThat(StackTraceFingerprint.signature(log))
+                .startsWith("java.net.sockettimeoutexception|com.acme.client.call(client.java)");
     }
 
     @Test
