@@ -15,6 +15,15 @@ test('dashboard renders remediation metadata supplied by backend', () => {
   assert.match(appSource, /m\.automaticExecutionAllowed/);
 });
 
+test('dashboard renders backend remediation playbook phases', () => {
+  assert.match(appSource, /playbookBlock\(m\.playbook\)/);
+  assert.match(appSource, /p\.inspect/);
+  assert.match(appSource, /p\.changeCandidates/);
+  assert.match(appSource, /p\.validate/);
+  assert.match(appSource, /p\.escalationSignals/);
+  assert.match(appSource, /Investigation guidance only · never executed automatically/);
+});
+
 test('dashboard does not duplicate category remediation policy', () => {
   assert.doesNotMatch(appSource, /INFRASTRUCTURE:\s*\[/);
   assert.doesNotMatch(appSource, /CONFIGURATION:\s*\[/);

@@ -25,7 +25,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - structured investigation-first remediation playbooks with inspect, change-candidate, validation and escalation phases
 - contextual verification guidance for Kafka, Spring Boot startup, HikariCP saturation and JVM OutOfMemory failures
 - Markdown reports include remediation safety, allowed actions and verification steps
-- dashboard renders backend-owned remediation metadata without duplicating policy logic client-side
+- dashboard renders backend-owned remediation metadata and operational playbooks without duplicating policy logic client-side
 - explicit `NO_AUTOMATIC_FIX` policy and disabled automatic execution
 - multi-incident parsing, fingerprinting, deduplication, timelines, correlations, root-cause candidates and spike detection
 - optional local-Ollama enrichment only after deterministic analysis
@@ -58,13 +58,13 @@ Default bind: `127.0.0.1:8080`.
 
 The file-first UI accepts `.log`, `.txt`, and `text/plain` inputs up to 5 MB. Files are read by the browser and sent as JSON for analysis; they are not persisted by the server.
 
-Each diagnosis carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, `automaticExecutionAllowed`, and a structured `playbook`. The playbook separates what to inspect, evidence-supported change candidates, post-change validation and escalation signals. These are guidance fields only: they do not grant execution permission.
+Each diagnosis carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, `automaticExecutionAllowed`, and a structured `playbook`. The dashboard renders the four playbook phases directly from the backend contract as `Inspect evidence`, `Change candidates`, `Validate recovery`, and `Escalate when`. It does not infer remediation policy in JavaScript.
 
 For known deterministic incidents, remediation can be more specific than the broad category. Kafka authorization/replication/consumer/schema/producer cases, Spring Boot startup failures, HikariCP connection-pool exhaustion and JVM OutOfMemory failures receive targeted checks and playbooks while the existing fix policy remains authoritative.
 
 Unknown, infrastructure, business and other protected cases remain human-review-only. Automatic execution is currently always `false`.
 
-The dashboard shows match evidence, grouping signature, cause chain, remediation guardrails, provenance, timeline, investigation order, correlations, root-cause candidates and spikes.
+The dashboard shows match evidence, grouping signature, cause chain, remediation guardrails and playbooks, provenance, timeline, investigation order, correlations, root-cause candidates and spikes.
 
 ## API
 
