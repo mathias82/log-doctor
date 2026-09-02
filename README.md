@@ -22,6 +22,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - stack-trace-aware grouping with dashboard grouping explainability
 - structured remediation metadata returned by both single and grouped diagnosis APIs
 - remediation safety state, allowed action types and incident-aware verification steps
+- structured investigation-first remediation playbooks with inspect, change-candidate, validation and escalation phases
 - contextual verification guidance for Kafka, Spring Boot startup, HikariCP saturation and JVM OutOfMemory failures
 - Markdown reports include remediation safety, allowed actions and verification steps
 - dashboard renders backend-owned remediation metadata without duplicating policy logic client-side
@@ -57,9 +58,9 @@ Default bind: `127.0.0.1:8080`.
 
 The file-first UI accepts `.log`, `.txt`, and `text/plain` inputs up to 5 MB. Files are read by the browser and sent as JSON for analysis; they are not persisted by the server.
 
-Each diagnosis carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, and `automaticExecutionAllowed`. The same object is preserved on grouped incidents returned by `/api/analyze/batch`, written into the Markdown report, and rendered directly by the dashboard. The browser no longer maintains its own category-to-remediation mapping.
+Each diagnosis carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, `automaticExecutionAllowed`, and a structured `playbook`. The playbook separates what to inspect, evidence-supported change candidates, post-change validation and escalation signals. These are guidance fields only: they do not grant execution permission.
 
-For known deterministic incidents, verification guidance can now be more specific than the broad category. Kafka authorization/replication/consumer/schema/producer cases, Spring Boot startup failures, HikariCP connection-pool exhaustion and JVM OutOfMemory failures receive targeted checks while the existing fix policy remains authoritative.
+For known deterministic incidents, remediation can be more specific than the broad category. Kafka authorization/replication/consumer/schema/producer cases, Spring Boot startup failures, HikariCP connection-pool exhaustion and JVM OutOfMemory failures receive targeted checks and playbooks while the existing fix policy remains authoritative.
 
 Unknown, infrastructure, business and other protected cases remain human-review-only. Automatic execution is currently always `false`.
 
@@ -76,11 +77,14 @@ Example remediation fragment present on a single diagnosis or grouped incident:
   "remediation": {
     "safety": "REVIEW_BEFORE_APPLY",
     "allowedActions": ["SPRING_CONFIG"],
-    "verificationSteps": [
-      "Validate the effective runtime configuration",
-      "Restart only after reviewing the configuration diff"
-    ],
-    "automaticExecutionAllowed": false
+    "verificationSteps": ["Validate the effective runtime configuration"],
+    "automaticExecutionAllowed": false,
+    "playbook": {
+      "inspect": ["FailureAnalysis Description and Action"],
+      "changeCandidates": ["Correct the identified configuration/dependency mismatch"],
+      "validate": ["Start with the same profile and environment"],
+      "escalationSignals": ["Configuration source or secret ownership is unclear"]
+    }
   }
 }
 ```
