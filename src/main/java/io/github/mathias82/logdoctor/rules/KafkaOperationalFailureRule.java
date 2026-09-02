@@ -60,11 +60,11 @@ public final class KafkaOperationalFailureRule implements IncidentRule {
                     Severity.HIGH, "Kafka metadata", "Kafka topic or partition is unavailable in metadata",
                     "The broker cannot currently resolve the requested topic or partition.",
                     "Verify topic existence/name, metadata propagation, broker/controller health and client bootstrap connectivity."),
-            new Spec("KAFKA_SCHEMA_REGISTRY_UNAUTHORIZED", "restclientexception: unauthorized", IncidentCategory.SECURITY,
+            new Spec("KAFKA_SCHEMA_REGISTRY_UNAUTHORIZED", "schema-registry-unauthorized", IncidentCategory.SECURITY,
                     Severity.HIGH, "Schema Registry authentication", "Schema Registry rejected the client as unauthorized",
                     "The Schema Registry request was rejected because authentication credentials are missing or invalid.",
                     "Verify Schema Registry URL and authentication credentials. Rotate or repair credentials rather than disabling authentication."),
-            new Spec("KAFKA_SCHEMA_INCOMPATIBLE", "incompatible schema", IncidentCategory.DESERIALIZATION,
+            new Spec("KAFKA_SCHEMA_INCOMPATIBLE", "schema-registry-incompatible", IncidentCategory.DESERIALIZATION,
                     Severity.HIGH, "Schema Registry compatibility", "Schema Registry rejected an incompatible schema",
                     "The proposed schema violates the subject's configured compatibility policy.",
                     "Compare the new schema with registered versions and make a compatible evolution; do not weaken compatibility without an explicit migration plan.")
@@ -75,13 +75,44 @@ public final class KafkaOperationalFailureRule implements IncidentRule {
         String text = context.contextText() == null ? "" : context.contextText();
         String lower = text.toLowerCase(Locale.ROOT);
         for (Spec spec : SPECS) {
-            if (!lower.contains(spec.marker())) continue;
+            if (!matches(spec, lower)) continue;
             CatalogIncident incident = new CatalogIncident(spec.type(), spec.category(), spec.severity(), Confidence.HIGH,
                     spec.component(), spec.summary(), spec.rootCause(), spec.recommendation());
-            incident.setEvidence(firstMatchingLine(text, spec.marker()));
+            incident.setEvidence(firstMatchingLine(text, evidenceMarker(spec, lower)));
             return Optional.of(incident);
         }
         return Optional.empty();
+    }
+
+    private static boolean matches(Spec spec, String lower) {
+        return switch (spec.type()) {
+            case "KAFKA_SCHEMA_REGISTRY_UNAUTHORIZED" -> hasSchemaRegistryContext(lower)
+                    && (lower.contains("unauthorized") || lower.contains("status 401") || lower.contains("status: 401") || lower.contains("error code: 401"));
+            case "KAFKA_SCHEMA_INCOMPATIBLE" -> hasSchemaRegistryContext(lower)
+                    && (lower.contains("incompatible schema") || lower.contains("is incompatible with") || lower.contains("error code: 409") || lower.contains("status 409"));
+            default -> lower.contains(spec.marker());
+        };
+    }
+
+    private static boolean hasSchemaRegistryContext(String lower) {
+        return lower.contains("schema registry")
+                || lower.contains("schema-registry")
+                || lower.contains("schemaregistry")
+                || lower.contains("io.confluent.kafka.schemaregistry")
+                || lower.contains("restclientexception");
+    }
+
+    private static String evidenceMarker(Spec spec, String lower) {
+        if (spec.type().equals("KAFKA_SCHEMA_REGISTRY_UNAUTHORIZED")) {
+            if (lower.contains("unauthorized")) return "unauthorized";
+            return "401";
+        }
+        if (spec.type().equals("KAFKA_SCHEMA_INCOMPATIBLE")) {
+            if (lower.contains("incompatible schema")) return "incompatible schema";
+            if (lower.contains("is incompatible with")) return "is incompatible with";
+            return "409";
+        }
+        return spec.marker();
     }
 
     private static String firstMatchingLine(String text, String marker) {
