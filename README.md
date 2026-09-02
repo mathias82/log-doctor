@@ -10,6 +10,8 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 
 > **Log Doctor doesn't replace an LLM. It decides what doesn't need one.**
 
+![Log Doctor dashboard](docs/images/dashboard-overview.svg)
+
 ## Key capabilities
 
 - deterministic incident detection before AI
@@ -22,6 +24,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - timeline, correlations, root-cause candidates and spike detection
 - structured JSON and downloadable Markdown incident reports
 - file upload / drag-and-drop web dashboard
+- visible deterministic/Ollama provenance and human-review state in the web UI
 - deterministic sensitive-data redaction before the LLM boundary
 - explicit `NO_AUTOMATIC_FIX` safety policy for unsafe cases
 - browser-local recent-analysis history without persisting raw logs server-side
@@ -132,7 +135,9 @@ The file-first UI accepts `.log`, `.txt`, and `text/plain` inputs up to 5 MB. Fi
 
 Batch analysis processes up to 500 detected failure blocks and reports `truncated=true` when the cap is exceeded. Clean logs return zero detected failure blocks instead of a synthetic incident.
 
-The dashboard shows incident grouping, severity/confidence/category, evidence, timeline, investigation order, likely correlations, scored root-cause chain candidates, spikes, raw structured JSON and a downloadable Markdown incident report.
+The dashboard shows incident grouping, severity/confidence/category, deterministic-vs-Ollama provenance, human-review state, evidence, fix policy, timeline, investigation order, likely correlations, scored root-cause chain candidates, spikes, raw structured JSON and a downloadable Markdown incident report.
+
+![Incident diagnostics detail](docs/images/incident-detail-preview.svg)
 
 ## Analysis flow
 
