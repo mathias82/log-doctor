@@ -8,6 +8,7 @@ import io.github.mathias82.logdoctor.core.IncidentCategory;
 import io.github.mathias82.logdoctor.llm.LlmClient;
 import io.github.mathias82.logdoctor.llm.OllamaLlmClient;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -21,6 +22,7 @@ public class DiagnosisEngine {
     private final LogParser parser;
     private final FailureLocator failureLocator;
     private final FailureContextExtractor contextExtractor;
+    private final CauseChainAnalyzer causeChainAnalyzer;
     private final LlmClient llm;
 
     public DiagnosisEngine() {
@@ -28,7 +30,7 @@ public class DiagnosisEngine {
     }
 
     public DiagnosisEngine(LlmClient llm) {
-        this(new IncidentDetector(), new LogParser(), new FailureLocator(), new FailureContextExtractor(), llm);
+        this(new IncidentDetector(), new LogParser(), new FailureLocator(), new FailureContextExtractor(), new CauseChainAnalyzer(), llm);
     }
 
     DiagnosisEngine(
@@ -38,10 +40,22 @@ public class DiagnosisEngine {
             FailureContextExtractor contextExtractor,
             LlmClient llm
     ) {
+        this(detector, parser, failureLocator, contextExtractor, new CauseChainAnalyzer(), llm);
+    }
+
+    DiagnosisEngine(
+            IncidentDetector detector,
+            LogParser parser,
+            FailureLocator failureLocator,
+            FailureContextExtractor contextExtractor,
+            CauseChainAnalyzer causeChainAnalyzer,
+            LlmClient llm
+    ) {
         this.detector = detector;
         this.parser = parser;
         this.failureLocator = failureLocator;
         this.contextExtractor = contextExtractor;
+        this.causeChainAnalyzer = causeChainAnalyzer;
         this.llm = llm;
     }
 
@@ -73,12 +87,22 @@ public class DiagnosisEngine {
         String location = failure.blameLocation() != null
                 ? failure.blameLocation().content()
                 : failure.rootCause().content();
+        List<CauseChainAnalyzer.Cause> causeChain = causeChainAnalyzer.analyze(lines);
 
-        var incidentOpt = detector.detect(new RuleContext(lines, failure, contextText))
-                .filter(incident -> incident.confidence() == Confidence.HIGH);
+        var detectionOpt = detector.detectDetailed(new RuleContext(lines, failure, contextText))
+                .filter(detection -> detection.incident().confidence() == Confidence.HIGH);
 
-        if (incidentOpt.isPresent()) {
-            return diagnosedIncident(incidentOpt.get(), contextText, location, failure.rootCause().lineNumber(), allowLlm);
+        if (detectionOpt.isPresent()) {
+            var detection = detectionOpt.get();
+            return diagnosedIncident(
+                    detection.incident(),
+                    contextText,
+                    location,
+                    failure.rootCause().lineNumber(),
+                    allowLlm,
+                    causeChain,
+                    detection.reasons()
+            );
         }
 
         String lower = contextText.toLowerCase(Locale.ROOT);
@@ -90,7 +114,9 @@ public class DiagnosisEngine {
                     "APPLICATION",
                     "Concurrency / data consistency failure",
                     "Concurrency / data consistency failure detected in application layer",
-                    contextText
+                    contextText,
+                    causeChain,
+                    List.of("Matched protected concurrency fallback", "Concurrency signature found in failure context")
             );
         }
 
@@ -102,11 +128,24 @@ public class DiagnosisEngine {
                     "APPLICATION",
                     "Domain state machine violation",
                     "Domain state machine / business invariant violation",
-                    contextText
+                    contextText,
+                    causeChain,
+                    List.of("Matched protected business-invariant fallback", "IllegalStateException state/transition signature found")
             );
         }
 
-        return unknownFailure(contextText, lower, location, failure.rootCause().content(), failure.rootCause().lineNumber(), allowLlm);
+        String deepestCause = causeChain.isEmpty()
+                ? failure.rootCause().content()
+                : causeChain.get(causeChain.size() - 1).evidence();
+        return unknownFailure(
+                contextText,
+                lower,
+                location,
+                deepestCause,
+                failure.rootCause().lineNumber(),
+                allowLlm,
+                causeChain
+        );
     }
 
     private DiagnosisResult diagnosedIncident(
@@ -114,7 +153,9 @@ public class DiagnosisEngine {
             String evidence,
             String location,
             int failureLine,
-            boolean allowLlm
+            boolean allowLlm,
+            List<CauseChainAnalyzer.Cause> causeChain,
+            List<String> matchReasons
     ) {
         incident.setEvidence(evidence);
         incident.setComponent(location);
@@ -126,6 +167,8 @@ public class DiagnosisEngine {
         String llmAnalysis = !allowLlm || humanReview ? null : safelyExplainKnownIncident(incident);
 
         String diagnosis = incident.format() + System.lineSeparator()
+                + formatCauseChain(causeChain)
+                + formatMatchReasons(matchReasons)
                 + "FIX:" + System.lineSeparator() + fix + System.lineSeparator()
                 + formatLlmSection(llmAnalysis);
 
@@ -144,7 +187,9 @@ public class DiagnosisEngine {
                 humanReview,
                 llmAnalysis != null,
                 failureLine,
-                diagnosis
+                diagnosis,
+                causeChain,
+                matchReasons
         );
     }
 
@@ -154,16 +199,20 @@ public class DiagnosisEngine {
             String location,
             String rootCause,
             int failureLine,
-            boolean allowLlm
+            boolean allowLlm,
+            List<CauseChainAnalyzer.Cause> causeChain
     ) {
         IncidentCategory category = inferUnknownCategory(lower);
         String llmAnalysis = allowLlm ? safelyAnalyzeUnknownLog(contextText, category) : null;
         String fix = llmAnalysis == null
                 ? "No deterministic rule matched and local LLM analysis is unavailable. Human review required."
                 : "Review the local LLM analysis and supporting evidence.";
+        List<String> matchReasons = List.of("No deterministic rule matched the failure context");
 
         String diagnosis = "Unknown failure detected at line " + failureLine + System.lineSeparator()
                 + contextText + System.lineSeparator()
+                + formatCauseChain(causeChain)
+                + formatMatchReasons(matchReasons)
                 + formatLlmSection(llmAnalysis);
 
         return new DiagnosisResult(
@@ -181,7 +230,9 @@ public class DiagnosisEngine {
                 true,
                 llmAnalysis != null,
                 failureLine,
-                diagnosis
+                diagnosis,
+                causeChain,
+                matchReasons
         );
     }
 
@@ -192,10 +243,14 @@ public class DiagnosisEngine {
             String category,
             String summary,
             String rootCause,
-            String evidence
+            String evidence,
+            List<CauseChainAnalyzer.Cause> causeChain,
+            List<String> matchReasons
     ) {
         String diagnosis = "WHERE:" + System.lineSeparator() + location + System.lineSeparator() + System.lineSeparator()
                 + "ROOT CAUSE:" + System.lineSeparator() + rootCause + System.lineSeparator() + System.lineSeparator()
+                + formatCauseChain(causeChain)
+                + formatMatchReasons(matchReasons)
                 + "FIX:" + System.lineSeparator() + NO_AUTOMATIC_FIX + System.lineSeparator();
 
         return new DiagnosisResult(
@@ -213,7 +268,9 @@ public class DiagnosisEngine {
                 true,
                 false,
                 line,
-                diagnosis
+                diagnosis,
+                causeChain,
+                matchReasons
         );
     }
 
@@ -243,6 +300,26 @@ public class DiagnosisEngine {
         }
         return System.lineSeparator() + "LLM ANALYSIS:" + System.lineSeparator()
                 + llmAnalysis + System.lineSeparator();
+    }
+
+    private static String formatCauseChain(List<CauseChainAnalyzer.Cause> causeChain) {
+        if (causeChain == null || causeChain.isEmpty()) {
+            return "";
+        }
+        String chain = causeChain.stream()
+                .map(cause -> "- line " + cause.lineNumber() + ": " + cause.exceptionType()
+                        + (cause.message().isBlank() ? "" : ": " + cause.message()))
+                .collect(Collectors.joining(System.lineSeparator()));
+        return "CAUSE CHAIN:" + System.lineSeparator() + chain + System.lineSeparator() + System.lineSeparator();
+    }
+
+    private static String formatMatchReasons(List<String> matchReasons) {
+        if (matchReasons == null || matchReasons.isEmpty()) {
+            return "";
+        }
+        return "WHY MATCHED:" + System.lineSeparator()
+                + matchReasons.stream().map(reason -> "- " + reason).collect(Collectors.joining(System.lineSeparator()))
+                + System.lineSeparator() + System.lineSeparator();
     }
 
     private static String formatFixTypes(Set<FixType> allowedFixes) {
@@ -288,13 +365,15 @@ public class DiagnosisEngine {
             boolean humanReviewRequired,
             boolean llmUsed,
             Integer failureLine,
-            String diagnosis
+            String diagnosis,
+            List<CauseChainAnalyzer.Cause> causeChain,
+            List<String> matchReasons
     ) {
         static DiagnosisResult empty(String message) {
             return new DiagnosisResult(
                     "NO_FAILURE", "NONE", "NONE", "NONE", "NONE", "—", message,
                     "—", "—", "NONE", "No remediation required.", false, false, null,
-                    message + System.lineSeparator()
+                    message + System.lineSeparator(), List.of(), List.of()
             );
         }
     }
