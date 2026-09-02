@@ -20,12 +20,13 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - deterministic nested exception cause-chain extraction
 - explicit `WHY MATCHED` explanations and auditable 0-100 match-strength scoring
 - stack-trace-aware grouping with deepest-cause frame association, module/native frame support and dashboard grouping explainability
+- structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
 - structured remediation metadata returned by both single and grouped diagnosis APIs
 - remediation safety state, allowed action types and incident-aware verification steps
 - structured investigation-first remediation playbooks with inspect, change-candidate, validation and escalation phases
 - contextual verification guidance for Kafka, Spring Boot startup, HikariCP saturation and JVM OutOfMemory failures
 - Markdown reports include remediation safety, allowed actions and verification steps
-- dashboard renders backend-owned remediation metadata and operational playbooks without duplicating policy logic client-side
+- dashboard renders backend-owned grouping/remediation metadata and operational playbooks without duplicating policy logic client-side
 - explicit `NO_AUTOMATIC_FIX` policy and disabled automatic execution
 - multi-incident parsing, fingerprinting, deduplication, timelines, correlations, root-cause candidates and spike detection
 - optional local-Ollama enrichment only after deterministic analysis
@@ -58,6 +59,8 @@ Default bind: `127.0.0.1:8080`.
 
 The file-first UI accepts `.log`, `.txt`, and `text/plain` inputs up to 5 MB. Files are read by the browser and sent as JSON for analysis; they are not persisted by the server.
 
+Each grouped incident returned by the batch API includes a structured `grouping` object with `strategy`, `exceptionType`, `frames`, and `lineNumbersIgnored`. The dashboard consumes that object directly and no longer reverse-parses the opaque `fingerprint` value. The fingerprint remains available as a stable internal/backward-compatible identity.
+
 Each diagnosis carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, `automaticExecutionAllowed`, and a structured `playbook`. The dashboard renders the four playbook phases directly from the backend contract as `Inspect evidence`, `Change candidates`, `Validate recovery`, and `Escalate when`. It does not infer remediation policy in JavaScript.
 
 For known deterministic incidents, remediation can be more specific than the broad category. Kafka authorization/replication/consumer/schema/producer cases, Spring Boot startup failures, HikariCP connection-pool exhaustion and JVM OutOfMemory failures receive targeted checks and playbooks while the existing fix policy remains authoritative.
@@ -71,6 +74,19 @@ Stack-aware grouping associates the selected deepest visible exception/error/thr
 ## API
 
 `POST /api/analyze` returns one structured diagnosis. `POST /api/analyze/batch` returns grouped incidents and advanced batch insights. Both accept JSON with a `log` string.
+
+Example grouping fragment on a grouped incident:
+
+```json
+{
+  "grouping": {
+    "strategy": "STACK_TRACE",
+    "exceptionType": "java.lang.nullpointerexception",
+    "frames": ["com.acme.orderservice.load(orderservice.java)"],
+    "lineNumbersIgnored": true
+  }
+}
+```
 
 Example remediation fragment present on a single diagnosis or grouped incident:
 
