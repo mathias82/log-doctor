@@ -8,7 +8,8 @@ public record RemediationMetadata(
         String safety,
         List<String> allowedActions,
         List<String> verificationSteps,
-        boolean automaticExecutionAllowed
+        boolean automaticExecutionAllowed,
+        RemediationPlaybook playbook
 ) {
     public static RemediationMetadata from(Incident incident, Set<FixType> allowedFixes) {
         return build(incident.category(), incident.type(), allowedFixes);
@@ -22,7 +23,14 @@ public record RemediationMetadata(
         boolean manualOnly = allowedFixes.contains(FixType.NO_AUTOMATIC_FIX);
         List<String> actions = allowedFixes.stream().map(Enum::name).sorted().toList();
         List<String> verification = contextualVerification(incidentType, category);
-        return new RemediationMetadata(manualOnly ? "HUMAN_REVIEW_REQUIRED" : "REVIEW_BEFORE_APPLY", actions, verification, false);
+        RemediationPlaybook playbook = RemediationPlaybook.forIncident(incidentType, category);
+        return new RemediationMetadata(
+                manualOnly ? "HUMAN_REVIEW_REQUIRED" : "REVIEW_BEFORE_APPLY",
+                actions,
+                verification,
+                false,
+                playbook
+        );
     }
 
     private static List<String> contextualVerification(String incidentType, IncidentCategory category) {
