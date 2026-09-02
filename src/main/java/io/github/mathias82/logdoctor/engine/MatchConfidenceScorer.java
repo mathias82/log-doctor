@@ -35,9 +35,9 @@ public final class MatchConfidenceScorer {
             factors.add("Matching evidence was extracted (+" + EVIDENCE_PRESENT + ")");
         }
 
-        if (causeChainContainsIncident(causeChain, incident.type())) {
+        if (causeChainSupportsIncident(causeChain, incident)) {
             value += CAUSE_CHAIN_MATCH;
-            factors.add("Incident type appears in the visible cause chain (+" + CAUSE_CHAIN_MATCH + ")");
+            factors.add("Visible cause chain supports the matched incident (+" + CAUSE_CHAIN_MATCH + ")");
         }
 
         if (!"CommonFailureCatalogRule".equals(detection.rule())) {
@@ -62,6 +62,31 @@ public final class MatchConfidenceScorer {
 
     public Score unknown() {
         return new Score(0, "NONE", List.of("No deterministic rule matched"));
+    }
+
+    private static boolean causeChainSupportsIncident(
+            List<CauseChainAnalyzer.Cause> causeChain,
+            Incident incident
+    ) {
+        if (causeChain == null || causeChain.isEmpty() || incident == null) {
+            return false;
+        }
+
+        if (causeChainContainsIncident(causeChain, incident.type())) {
+            return true;
+        }
+
+        String evidence = incident.evidence();
+        if (evidence == null || evidence.isBlank()) {
+            return false;
+        }
+
+        String normalizedEvidence = evidence.toLowerCase(Locale.ROOT);
+        return causeChain.stream()
+                .map(CauseChainAnalyzer.Cause::exceptionType)
+                .filter(type -> type != null && !type.isBlank())
+                .map(MatchConfidenceScorer::simpleName)
+                .anyMatch(normalizedEvidence::contains);
     }
 
     private static boolean causeChainContainsIncident(
