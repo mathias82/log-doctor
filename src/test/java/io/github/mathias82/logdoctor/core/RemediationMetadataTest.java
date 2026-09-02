@@ -53,6 +53,7 @@ class RemediationMetadataTest {
         var incident = new HikariTimeoutIncident();
         var metadata = RemediationMetadata.from(incident, FixPolicy.allowedFixes(incident.category()));
 
+        assertThat(RemediationProfile.forIncident(incident)).isEqualTo(RemediationProfile.HIKARI_CONNECTION_TIMEOUT);
         assertThat(metadata.verificationSteps())
                 .contains("Inspect HikariCP active, idle and pending connection metrics during the failure window")
                 .anyMatch(step -> step.contains("leaked or long-running database connections"));
@@ -66,6 +67,7 @@ class RemediationMetadataTest {
         var incident = new OutOfMemoryIncident();
         var metadata = RemediationMetadata.from(incident, FixPolicy.allowedFixes(incident.category()));
 
+        assertThat(RemediationProfile.forIncident(incident)).isEqualTo(RemediationProfile.JVM_OUT_OF_MEMORY);
         assertThat(metadata.verificationSteps())
                 .anyMatch(step -> step.contains("heap dump"))
                 .anyMatch(step -> step.contains("container or host memory limits"));
@@ -88,6 +90,7 @@ class RemediationMetadataTest {
         );
         var metadata = RemediationMetadata.from(incident, FixPolicy.allowedFixes(incident.category()));
 
+        assertThat(RemediationProfile.forIncident(incident)).isEqualTo(RemediationProfile.KAFKA_AUTHENTICATION_AUTHORIZATION);
         assertThat(metadata.safety()).isEqualTo("HUMAN_REVIEW_REQUIRED");
         assertThat(metadata.verificationSteps())
                 .anyMatch(step -> step.contains("authenticated Kafka or Schema Registry principal"))
@@ -111,6 +114,7 @@ class RemediationMetadataTest {
         );
         var metadata = RemediationMetadata.from(incident, FixPolicy.allowedFixes(incident.category()));
 
+        assertThat(RemediationProfile.forIncident(incident)).isEqualTo(RemediationProfile.SPRING_BOOT_STARTUP);
         assertThat(metadata.verificationSteps())
                 .anyMatch(step -> step.contains("FailureAnalysis Description/Action"))
                 .anyMatch(step -> step.contains("same profile, environment and external dependencies"));
@@ -133,10 +137,27 @@ class RemediationMetadataTest {
         );
         var metadata = RemediationMetadata.from(incident, FixPolicy.allowedFixes(incident.category()));
 
+        assertThat(RemediationProfile.forIncident(incident)).isEqualTo(RemediationProfile.KAFKA_CONSUMER_STATE);
         assertThat(metadata.playbook().changeCandidates())
                 .anyMatch(step -> step.contains("explicit data-recovery decision"));
         assertThat(metadata.playbook().escalationSignals())
                 .anyMatch(step -> step.contains("lose business data"));
         assertThat(metadata.automaticExecutionAllowed()).isFalse();
+    }
+
+    @Test
+    void unknownIncidentTypeFallsBackToGenericProfile() {
+        var incident = new CatalogIncident(
+                "CUSTOM_FAILURE",
+                IncidentCategory.CONFIGURATION,
+                Severity.MEDIUM,
+                Confidence.MEDIUM,
+                "custom",
+                "custom failure",
+                "unknown cause",
+                "review"
+        );
+
+        assertThat(RemediationProfile.forIncident(incident)).isEqualTo(RemediationProfile.GENERIC);
     }
 }
