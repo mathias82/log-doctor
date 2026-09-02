@@ -21,7 +21,8 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - explicit `WHY MATCHED` explanations and auditable 0-100 match-strength scoring
 - stack-trace-aware grouping with dashboard grouping explainability
 - structured remediation metadata returned by both single and grouped diagnosis APIs
-- remediation safety state, allowed action types and category-specific verification steps
+- remediation safety state, allowed action types and incident-aware verification steps
+- contextual verification guidance for Kafka, Spring Boot startup, HikariCP saturation and JVM OutOfMemory failures
 - Markdown reports include remediation safety, allowed actions and verification steps
 - dashboard renders backend-owned remediation metadata without duplicating policy logic client-side
 - explicit `NO_AUTOMATIC_FIX` policy and disabled automatic execution
@@ -57,6 +58,8 @@ Default bind: `127.0.0.1:8080`.
 The file-first UI accepts `.log`, `.txt`, and `text/plain` inputs up to 5 MB. Files are read by the browser and sent as JSON for analysis; they are not persisted by the server.
 
 Each diagnosis carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, and `automaticExecutionAllowed`. The same object is preserved on grouped incidents returned by `/api/analyze/batch`, written into the Markdown report, and rendered directly by the dashboard. The browser no longer maintains its own category-to-remediation mapping.
+
+For known deterministic incidents, verification guidance can now be more specific than the broad category. Kafka authorization/replication/consumer/schema/producer cases, Spring Boot startup failures, HikariCP connection-pool exhaustion and JVM OutOfMemory failures receive targeted checks while the existing fix policy remains authoritative.
 
 Unknown, infrastructure, business and other protected cases remain human-review-only. Automatic execution is currently always `false`.
 
