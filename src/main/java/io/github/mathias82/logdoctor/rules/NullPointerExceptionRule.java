@@ -11,19 +11,13 @@ public class NullPointerExceptionRule implements IncidentRule {
 
     @Override
     public Optional<Incident> match(RuleContext ctx) {
-
         String log = ctx.contextText();
-
-        if (log.contains("NullPointerException")
-                && log.contains("returned null")) {
-
-            NullPointerExceptionIncident incident =
-                    new NullPointerExceptionIncident();
-
-            incident.setEvidence(log);
-            return Optional.of(incident);
+        if (log == null || !log.contains("NullPointerException")) {
+            return Optional.empty();
         }
 
-        return Optional.empty();
+        NullPointerExceptionIncident incident = new NullPointerExceptionIncident();
+        incident.setEvidence(log);
+        return Optional.of(incident);
     }
 }
