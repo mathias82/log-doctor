@@ -10,6 +10,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.github.mathias82.logdoctor.engine.DiagnosisEngine;
 import io.github.mathias82.logdoctor.engine.GroupingMetadata;
 import io.github.mathias82.logdoctor.engine.LogBatchAnalyzer;
+import io.github.mathias82.logdoctor.observability.RuntimeMetrics;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,10 +46,12 @@ public final class LogDoctorWebServer {
 
     static HttpServer start(String host, int port, DiagnosisEngine engine) {
         try {
+            RuntimeMetrics metrics = new RuntimeMetrics();
             HttpServer server = HttpServer.create(new InetSocketAddress(host, port), 0);
-            server.createContext("/api/analyze", exchange -> handleAnalyze(exchange, engine));
-            server.createContext("/api/analyze/batch", exchange -> handleBatchAnalyze(exchange, engine));
+            server.createContext("/api/analyze", exchange -> handleAnalyze(exchange, engine, metrics));
+            server.createContext("/api/analyze/batch", exchange -> handleBatchAnalyze(exchange, engine, metrics));
             server.createContext("/api/health", LogDoctorWebServer::handleHealth);
+            server.createContext("/api/metrics", exchange -> handleMetrics(exchange, metrics));
             server.createContext("/", LogDoctorWebServer::handleStatic);
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.start();
@@ -65,13 +68,18 @@ public final class LogDoctorWebServer {
         writeJson(exchange, 200, Map.of("status", "UP", "apiVersion", API_VERSION));
     }
 
-    private static void handleAnalyze(HttpExchange exchange, DiagnosisEngine engine) throws IOException {
-        handleLogRequest(exchange, log -> engine.analyzeStructured(log));
+    private static void handleMetrics(HttpExchange exchange, RuntimeMetrics metrics) throws IOException {
+        if (!requireMethod(exchange, "GET")) return;
+        writeJson(exchange, 200, metrics.asMap());
     }
 
-    private static void handleBatchAnalyze(HttpExchange exchange, DiagnosisEngine engine) throws IOException {
+    private static void handleAnalyze(HttpExchange exchange, DiagnosisEngine engine, RuntimeMetrics metrics) throws IOException {
+        handleLogRequest(exchange, log -> engine.analyzeStructured(log), metrics);
+    }
+
+    private static void handleBatchAnalyze(HttpExchange exchange, DiagnosisEngine engine, RuntimeMetrics metrics) throws IOException {
         LogBatchAnalyzer batchAnalyzer = new LogBatchAnalyzer(engine);
-        handleLogRequest(exchange, log -> addGroupingMetadata(batchAnalyzer.analyze(log)));
+        handleLogRequest(exchange, log -> addGroupingMetadata(batchAnalyzer.analyze(log)), metrics);
     }
 
     private static JsonNode addGroupingMetadata(LogBatchAnalyzer.BatchDiagnosisResult result) {
@@ -90,7 +98,7 @@ public final class LogDoctorWebServer {
         return root;
     }
 
-    private static void handleLogRequest(HttpExchange exchange, LogAnalysis analysis) throws IOException {
+    private static void handleLogRequest(HttpExchange exchange, LogAnalysis analysis, RuntimeMetrics metrics) throws IOException {
         if (!requireMethod(exchange, "POST")) return;
         if (!isJsonRequest(exchange)) {
             writeJson(exchange, 415, Map.of("error", "Content-Type must be application/json"));
@@ -120,12 +128,36 @@ public final class LogDoctorWebServer {
                 writeJson(exchange, 413, Map.of("error", "Log content exceeds the 5 MB limit"));
                 return;
             }
-            writeJson(exchange, 200, analysis.analyze(request.log()));
+            long started = System.nanoTime();
+            Object result = analysis.analyze(request.log());
+            metrics.record(statusOf(result), llmUsedBy(result), System.nanoTime() - started);
+            writeJson(exchange, 200, result);
         } catch (JsonProcessingException e) {
             writeJson(exchange, 400, Map.of("error", "Invalid JSON request"));
         } catch (RuntimeException e) {
+            metrics.recordError();
             writeJson(exchange, 500, Map.of("error", "Analysis failed"));
         }
+    }
+
+    private static String statusOf(Object result) {
+        JsonNode node = JSON.valueToTree(result);
+        if (node.has("status")) return node.path("status").asText("");
+        JsonNode incidents = node.path("incidents");
+        if (incidents.isArray() && !incidents.isEmpty()) return "DIAGNOSED";
+        return "NO_FAILURE";
+    }
+
+    private static boolean llmUsedBy(Object result) {
+        JsonNode node = JSON.valueToTree(result);
+        if (node.path("llmUsed").asBoolean(false)) return true;
+        JsonNode incidents = node.path("incidents");
+        if (incidents.isArray()) {
+            for (JsonNode incident : incidents) {
+                if (incident.path("llmUsed").asBoolean(false)) return true;
+            }
+        }
+        return false;
     }
 
     private static boolean requireMethod(HttpExchange exchange, String expectedMethod) throws IOException {
