@@ -1,11 +1,8 @@
 package io.github.mathias82.logdoctor.rules;
 
-import io.github.mathias82.logdoctor.core.LogLine;
-import io.github.mathias82.logdoctor.engine.FailureLocator;
+import io.github.mathias82.logdoctor.core.Incident;
 import io.github.mathias82.logdoctor.engine.RuleContext;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -56,11 +53,11 @@ class KafkaOperationalFailureRuleTest {
         assertThat(rule.match(context("java.lang.RuntimeException: custom application failure"))).isEmpty();
     }
 
-    private io.github.mathias82.logdoctor.core.Incident match(String text) {
+    private Incident match(String text) {
         return rule.match(context(text)).orElseThrow();
     }
 
     private RuleContext context(String text) {
-        return new RuleContext(List.of(new LogLine(1, text)), new FailureLocator.Failure(1, text), text);
+        return new RuleContext(null, null, text);
     }
 }
