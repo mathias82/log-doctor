@@ -23,6 +23,7 @@ public class DiagnosisEngine {
     private final FailureLocator failureLocator;
     private final FailureContextExtractor contextExtractor;
     private final CauseChainAnalyzer causeChainAnalyzer;
+    private final MatchConfidenceScorer matchConfidenceScorer;
     private final LlmClient llm;
 
     public DiagnosisEngine() {
@@ -30,7 +31,15 @@ public class DiagnosisEngine {
     }
 
     public DiagnosisEngine(LlmClient llm) {
-        this(new IncidentDetector(), new LogParser(), new FailureLocator(), new FailureContextExtractor(), new CauseChainAnalyzer(), llm);
+        this(
+                new IncidentDetector(),
+                new LogParser(),
+                new FailureLocator(),
+                new FailureContextExtractor(),
+                new CauseChainAnalyzer(),
+                new MatchConfidenceScorer(),
+                llm
+        );
     }
 
     DiagnosisEngine(
@@ -40,7 +49,15 @@ public class DiagnosisEngine {
             FailureContextExtractor contextExtractor,
             LlmClient llm
     ) {
-        this(detector, parser, failureLocator, contextExtractor, new CauseChainAnalyzer(), llm);
+        this(
+                detector,
+                parser,
+                failureLocator,
+                contextExtractor,
+                new CauseChainAnalyzer(),
+                new MatchConfidenceScorer(),
+                llm
+        );
     }
 
     DiagnosisEngine(
@@ -51,11 +68,32 @@ public class DiagnosisEngine {
             CauseChainAnalyzer causeChainAnalyzer,
             LlmClient llm
     ) {
+        this(
+                detector,
+                parser,
+                failureLocator,
+                contextExtractor,
+                causeChainAnalyzer,
+                new MatchConfidenceScorer(),
+                llm
+        );
+    }
+
+    DiagnosisEngine(
+            IncidentDetector detector,
+            LogParser parser,
+            FailureLocator failureLocator,
+            FailureContextExtractor contextExtractor,
+            CauseChainAnalyzer causeChainAnalyzer,
+            MatchConfidenceScorer matchConfidenceScorer,
+            LlmClient llm
+    ) {
         this.detector = detector;
         this.parser = parser;
         this.failureLocator = failureLocator;
         this.contextExtractor = contextExtractor;
         this.causeChainAnalyzer = causeChainAnalyzer;
+        this.matchConfidenceScorer = matchConfidenceScorer;
         this.llm = llm;
     }
 
@@ -94,6 +132,7 @@ public class DiagnosisEngine {
 
         if (detectionOpt.isPresent()) {
             var detection = detectionOpt.get();
+            MatchConfidenceScorer.Score matchScore = matchConfidenceScorer.score(detection, causeChain, contextText);
             return diagnosedIncident(
                     detection.incident(),
                     contextText,
@@ -101,12 +140,16 @@ public class DiagnosisEngine {
                     failure.rootCause().lineNumber(),
                     allowLlm,
                     causeChain,
-                    detection.reasons()
+                    detection.reasons(),
+                    matchScore
             );
         }
 
         String lower = contextText.toLowerCase(Locale.ROOT);
         if (isConcurrencyFailure(lower)) {
+            MatchConfidenceScorer.Score matchScore = matchConfidenceScorer.protectedFallback(
+                    "Concurrency signature found in failure context"
+            );
             return manualReview(
                     failure.rootCause().lineNumber(),
                     location,
@@ -116,11 +159,15 @@ public class DiagnosisEngine {
                     "Concurrency / data consistency failure detected in application layer",
                     contextText,
                     causeChain,
-                    List.of("Matched protected concurrency fallback", "Concurrency signature found in failure context")
+                    List.of("Matched protected concurrency fallback", "Concurrency signature found in failure context"),
+                    matchScore
             );
         }
 
         if (isBusinessInvariantFailure(lower)) {
+            MatchConfidenceScorer.Score matchScore = matchConfidenceScorer.protectedFallback(
+                    "IllegalStateException state/transition signature found"
+            );
             return manualReview(
                     failure.rootCause().lineNumber(),
                     location,
@@ -130,7 +177,8 @@ public class DiagnosisEngine {
                     "Domain state machine / business invariant violation",
                     contextText,
                     causeChain,
-                    List.of("Matched protected business-invariant fallback", "IllegalStateException state/transition signature found")
+                    List.of("Matched protected business-invariant fallback", "IllegalStateException state/transition signature found"),
+                    matchScore
             );
         }
 
@@ -144,7 +192,8 @@ public class DiagnosisEngine {
                 deepestCause,
                 failure.rootCause().lineNumber(),
                 allowLlm,
-                causeChain
+                causeChain,
+                matchConfidenceScorer.unknown()
         );
     }
 
@@ -155,7 +204,8 @@ public class DiagnosisEngine {
             int failureLine,
             boolean allowLlm,
             List<CauseChainAnalyzer.Cause> causeChain,
-            List<String> matchReasons
+            List<String> matchReasons,
+            MatchConfidenceScorer.Score matchScore
     ) {
         incident.setEvidence(evidence);
         incident.setComponent(location);
@@ -168,6 +218,7 @@ public class DiagnosisEngine {
 
         String diagnosis = incident.format() + System.lineSeparator()
                 + formatCauseChain(causeChain)
+                + formatMatchScore(matchScore)
                 + formatMatchReasons(matchReasons)
                 + "FIX:" + System.lineSeparator() + fix + System.lineSeparator()
                 + formatLlmSection(llmAnalysis);
@@ -189,7 +240,10 @@ public class DiagnosisEngine {
                 failureLine,
                 diagnosis,
                 causeChain,
-                matchReasons
+                matchReasons,
+                matchScore.value(),
+                matchScore.band(),
+                matchScore.factors()
         );
     }
 
@@ -200,7 +254,8 @@ public class DiagnosisEngine {
             String rootCause,
             int failureLine,
             boolean allowLlm,
-            List<CauseChainAnalyzer.Cause> causeChain
+            List<CauseChainAnalyzer.Cause> causeChain,
+            MatchConfidenceScorer.Score matchScore
     ) {
         IncidentCategory category = inferUnknownCategory(lower);
         String llmAnalysis = allowLlm ? safelyAnalyzeUnknownLog(contextText, category) : null;
@@ -212,6 +267,7 @@ public class DiagnosisEngine {
         String diagnosis = "Unknown failure detected at line " + failureLine + System.lineSeparator()
                 + contextText + System.lineSeparator()
                 + formatCauseChain(causeChain)
+                + formatMatchScore(matchScore)
                 + formatMatchReasons(matchReasons)
                 + formatLlmSection(llmAnalysis);
 
@@ -232,7 +288,10 @@ public class DiagnosisEngine {
                 failureLine,
                 diagnosis,
                 causeChain,
-                matchReasons
+                matchReasons,
+                matchScore.value(),
+                matchScore.band(),
+                matchScore.factors()
         );
     }
 
@@ -245,11 +304,13 @@ public class DiagnosisEngine {
             String rootCause,
             String evidence,
             List<CauseChainAnalyzer.Cause> causeChain,
-            List<String> matchReasons
+            List<String> matchReasons,
+            MatchConfidenceScorer.Score matchScore
     ) {
         String diagnosis = "WHERE:" + System.lineSeparator() + location + System.lineSeparator() + System.lineSeparator()
                 + "ROOT CAUSE:" + System.lineSeparator() + rootCause + System.lineSeparator() + System.lineSeparator()
                 + formatCauseChain(causeChain)
+                + formatMatchScore(matchScore)
                 + formatMatchReasons(matchReasons)
                 + "FIX:" + System.lineSeparator() + NO_AUTOMATIC_FIX + System.lineSeparator();
 
@@ -270,7 +331,10 @@ public class DiagnosisEngine {
                 line,
                 diagnosis,
                 causeChain,
-                matchReasons
+                matchReasons,
+                matchScore.value(),
+                matchScore.band(),
+                matchScore.factors()
         );
     }
 
@@ -311,6 +375,19 @@ public class DiagnosisEngine {
                         + (cause.message().isBlank() ? "" : ": " + cause.message()))
                 .collect(Collectors.joining(System.lineSeparator()));
         return "CAUSE CHAIN:" + System.lineSeparator() + chain + System.lineSeparator() + System.lineSeparator();
+    }
+
+    private static String formatMatchScore(MatchConfidenceScorer.Score matchScore) {
+        if (matchScore == null) {
+            return "";
+        }
+        String factors = matchScore.factors().stream()
+                .map(factor -> "- " + factor)
+                .collect(Collectors.joining(System.lineSeparator()));
+        return "MATCH SCORE: " + matchScore.value() + "/100 (" + matchScore.band() + ")"
+                + System.lineSeparator()
+                + (factors.isBlank() ? "" : factors + System.lineSeparator())
+                + System.lineSeparator();
     }
 
     private static String formatMatchReasons(List<String> matchReasons) {
@@ -367,13 +444,16 @@ public class DiagnosisEngine {
             Integer failureLine,
             String diagnosis,
             List<CauseChainAnalyzer.Cause> causeChain,
-            List<String> matchReasons
+            List<String> matchReasons,
+            int matchScore,
+            String matchConfidence,
+            List<String> matchScoreFactors
     ) {
         static DiagnosisResult empty(String message) {
             return new DiagnosisResult(
                     "NO_FAILURE", "NONE", "NONE", "NONE", "NONE", "—", message,
                     "—", "—", "NONE", "No remediation required.", false, false, null,
-                    message + System.lineSeparator(), List.of(), List.of()
+                    message + System.lineSeparator(), List.of(), List.of(), 0, "NONE", List.of()
             );
         }
     }

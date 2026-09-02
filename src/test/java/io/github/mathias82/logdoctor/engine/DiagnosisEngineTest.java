@@ -18,6 +18,8 @@ class DiagnosisEngineTest {
         assertThat(result.status()).isEqualTo("NO_FAILURE");
         assertThat(result.llmUsed()).isFalse();
         assertThat(result.humanReviewRequired()).isFalse();
+        assertThat(result.matchScore()).isZero();
+        assertThat(result.matchConfidence()).isEqualTo("NONE");
     }
 
     @Test
@@ -37,6 +39,8 @@ class DiagnosisEngineTest {
         assertThat(result.llmUsed()).isTrue();
         assertThat(result.fixType()).isEqualTo("NO_AUTOMATIC_FIX");
         assertThat(result.diagnosis()).contains("stub unknown analysis");
+        assertThat(result.matchScore()).isZero();
+        assertThat(result.matchConfidence()).isEqualTo("NONE");
     }
 
     @Test
@@ -72,6 +76,8 @@ class DiagnosisEngineTest {
         assertThat(result.llmUsed()).isFalse();
         assertThat(result.fixType()).isEqualTo("NO_AUTOMATIC_FIX");
         assertThat(result.location()).contains("OptimisticLockException");
+        assertThat(result.matchScore()).isGreaterThanOrEqualTo(90);
+        assertThat(result.matchConfidence()).isEqualTo("VERY_HIGH");
     }
 
     @Test
@@ -106,6 +112,16 @@ class DiagnosisEngineTest {
         assertThat(result.matchReasons()).isNotEmpty();
         assertThat(result.matchReasons().get(0)).contains("CommonFailureCatalogRule");
         assertThat(result.diagnosis()).contains("WHY MATCHED:");
+    }
+
+    @Test
+    void exposesAuditableMatchScoreForCatalogRule() {
+        var result = engine.analyzeStructured("java.lang.NoClassDefFoundError: com/acme/Missing");
+
+        assertThat(result.matchScore()).isBetween(75, 100);
+        assertThat(result.matchConfidence()).isIn("HIGH", "VERY_HIGH");
+        assertThat(result.matchScoreFactors()).isNotEmpty();
+        assertThat(result.diagnosis()).contains("MATCH SCORE:");
     }
 
     private static final class StubLlmClient implements LlmClient {
