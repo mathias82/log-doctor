@@ -23,6 +23,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
 - structured remediation metadata returned by both single and grouped diagnosis APIs
 - remediation safety state, allowed action types and incident-aware verification steps
+- typed remediation profiles centralize incident-to-guidance routing so playbooks and verification cannot drift independently
 - structured investigation-first remediation playbooks with inspect, change-candidate, validation and escalation phases
 - contextual verification guidance for Kafka, Spring Boot startup, HikariCP saturation and JVM OutOfMemory failures
 - Markdown reports include remediation safety, allowed actions and verification steps
@@ -63,7 +64,7 @@ Each grouped incident returned by the batch API includes a structured `grouping`
 
 Each diagnosis carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, `automaticExecutionAllowed`, and a structured `playbook`. The dashboard renders the four playbook phases directly from the backend contract as `Inspect evidence`, `Change candidates`, `Validate recovery`, and `Escalate when`. It does not infer remediation policy in JavaScript.
 
-For known deterministic incidents, remediation can be more specific than the broad category. Kafka authorization/replication/consumer/schema/producer cases, Spring Boot startup failures, HikariCP connection-pool exhaustion and JVM OutOfMemory failures receive targeted checks and playbooks while the existing fix policy remains authoritative.
+For known deterministic incidents, remediation can be more specific than the broad category. Kafka authorization/replication/consumer/schema/producer cases, Spring Boot startup failures, HikariCP connection-pool exhaustion and JVM OutOfMemory failures receive targeted checks and playbooks while the existing fix policy remains authoritative. These specializations are selected through a typed `RemediationProfile`, so verification guidance and playbook selection share one central routing decision instead of duplicating incident-type string checks.
 
 Unknown, infrastructure, business and other protected cases remain human-review-only. Automatic execution is currently always `false`.
 
