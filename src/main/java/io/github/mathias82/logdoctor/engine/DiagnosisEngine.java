@@ -48,7 +48,7 @@ public class DiagnosisEngine {
     private DiagnosisResult diagnosedIncident(Incident incident,String evidence,String location,int line,boolean allowLlm,List<CauseChainAnalyzer.Cause> chain,List<String> reasons,MatchConfidenceScorer.Score score){
         incident.setEvidence(evidence);incident.setComponent(location);Set<FixType> allowed=FixPolicy.allowedFixes(incident.category());boolean human=allowed.contains(FixType.NO_AUTOMATIC_FIX);
         String fixType=human?FixType.NO_AUTOMATIC_FIX.name():formatFixTypes(allowed),fix=human?NO_AUTOMATIC_FIX:incident.recommendation(),llmAnalysis=!allowLlm||human?null:safelyExplainKnownIncident(incident);
-        RemediationMetadata remediation=RemediationMetadata.from(incident.category(),allowed);
+        RemediationMetadata remediation=RemediationMetadata.from(incident,allowed);
         String diagnosis=incident.format()+System.lineSeparator()+formatCauseChain(chain)+formatMatchScore(score)+formatMatchReasons(reasons)+"FIX:"+System.lineSeparator()+fix+System.lineSeparator()+formatLlmSection(llmAnalysis);
         return new DiagnosisResult("DIAGNOSED",incident.type(),incident.category().name(),incident.severity().name(),incident.confidence().name(),incident.component(),incident.summary(),incident.rootCause(),incident.evidence(),fixType,fix,human,llmAnalysis!=null,line,diagnosis,chain,reasons,score.value(),score.band(),score.factors(),remediation);
     }
