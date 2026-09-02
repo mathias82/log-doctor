@@ -26,16 +26,16 @@ public class NullPointerExceptionIncident extends Incident {
 
     @Override
     public String summary() {
-        return "Deterministic NullPointerException caused by null return value.";
+        return "A NullPointerException was detected in the failure context.";
     }
 
     @Override
     public String rootCause() {
-        return "A method call returned null and was used without a null check.";
+        return "A null reference was dereferenced; use the first relevant application frame and surrounding evidence to identify where the unexpected null originated.";
     }
 
     @Override
     public String recommendation() {
-        return "Add a fail-fast null check using Objects.requireNonNull or Optional.orElseThrow.";
+        return "Inspect the first application-owned stack frame and the value source, then add validation or a fail-fast non-null contract where the invariant requires it. Avoid adding blind null checks that hide the underlying data or control-flow problem.";
     }
 }
