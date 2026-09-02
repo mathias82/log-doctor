@@ -43,8 +43,10 @@ public class IncidentDetector {
             new NoSuchMethodErrorRule(),
             new BeanCurrentlyInCreationRule(),
             new AccessDeniedExceptionRule(),
-            new KafkaJsonDeserializationRule()
-            );
+            new KafkaJsonDeserializationRule(),
+            new PersistenceConcurrencyRule(),
+            new CommonFailureCatalogRule()
+    );
 
     public Optional<Incident> detect(RuleContext context) {
         return rules.stream()
