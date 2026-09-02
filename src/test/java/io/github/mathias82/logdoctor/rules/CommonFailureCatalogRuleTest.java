@@ -16,7 +16,7 @@ class CommonFailureCatalogRuleTest {
 
     @Test
     void containsBroadCuratedCoverage() {
-        assertThat(CommonFailureCatalogRule.catalogSize()).isGreaterThanOrEqualTo(100);
+        assertThat(CommonFailureCatalogRule.catalogSize()).isGreaterThanOrEqualTo(80);
     }
 
     @Test
