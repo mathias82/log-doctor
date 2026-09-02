@@ -13,9 +13,10 @@ class BatchRemediationContractTest {
 
     @Test
     void carriesBackendRemediationMetadataIntoGroupedIncident() {
-        String log = "java.lang.NoClassDefFoundError: com/acme/Missing";
+        String log = failureLog("java.lang.NoClassDefFoundError: com/acme/Missing");
 
         var result = analyzer.analyze(log);
+        assertThat(result.incidents()).hasSize(1);
         var incident = result.incidents().getFirst();
 
         assertThat(incident.remediation()).isNotNull();
@@ -27,7 +28,7 @@ class BatchRemediationContractTest {
 
     @Test
     void includesRemediationSafetyInMarkdownReport() {
-        String log = "java.lang.NoClassDefFoundError: com/acme/Missing";
+        String log = failureLog("java.lang.NoClassDefFoundError: com/acme/Missing");
 
         String report = analyzer.analyze(log).reportMarkdown();
 
@@ -40,13 +41,22 @@ class BatchRemediationContractTest {
 
     @Test
     void keepsUnknownGroupedIncidentHumanReviewOnlyAfterLlmEnrichment() {
-        String log = "java.lang.RuntimeException: unusual failure";
+        String log = failureLog("java.lang.RuntimeException: unusual failure");
 
-        var incident = analyzer.analyze(log).incidents().getFirst();
+        var result = analyzer.analyze(log);
+        assertThat(result.incidents()).hasSize(1);
+        var incident = result.incidents().getFirst();
 
         assertThat(incident.remediation().safety()).isEqualTo("HUMAN_REVIEW_REQUIRED");
         assertThat(incident.remediation().allowedActions()).containsExactly("NO_AUTOMATIC_FIX");
         assertThat(incident.remediation().automaticExecutionAllowed()).isFalse();
+    }
+
+    private static String failureLog(String exception) {
+        return String.join(System.lineSeparator(),
+                "2026-09-02 18:00:00 ERROR request failed",
+                exception,
+                "    at com.acme.OrderService.run(OrderService.java:41)");
     }
 
     private static final class StubLlmClient implements LlmClient {
