@@ -2,13 +2,18 @@ package io.github.mathias82.logdoctor.engine;
 
 import io.github.mathias82.logdoctor.core.Incident;
 import io.github.mathias82.logdoctor.rules.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 
 public class IncidentDetector {
+
+    private static final Logger LOG = LoggerFactory.getLogger(IncidentDetector.class);
 
     private static final List<IncidentRule> SPECIALIZED_RULES = List.of(
             new HibernateLazyInitRule(),
@@ -59,6 +64,10 @@ public class IncidentDetector {
      * Extension rules run after Log Doctor's specialized rules and before the broad
      * common-failure catalog, preserving built-in precedence while allowing custom
      * organization/domain diagnostics to beat the generic catch layer.
+     *
+     * <p>Extension failures are isolated from core diagnosis: provider loading and
+     * extension rule runtime failures are logged and skipped so a broken third-party
+     * rule cannot take down the analyzer.</p>
      */
     public IncidentDetector() {
         this(loadExtensionRules());
@@ -71,7 +80,10 @@ public class IncidentDetector {
     public IncidentDetector(List<IncidentRule> extensionRules) {
         List<IncidentRule> ordered = new ArrayList<>(SPECIALIZED_RULES);
         if (extensionRules != null) {
-            extensionRules.stream().filter(rule -> rule != null).forEach(ordered::add);
+            extensionRules.stream()
+                    .filter(rule -> rule != null)
+                    .map(SafeExtensionRule::new)
+                    .forEach(ordered::add);
         }
         ordered.add(new CommonFailureCatalogRule());
         this.rules = List.copyOf(ordered);
@@ -79,12 +91,21 @@ public class IncidentDetector {
 
     private static List<IncidentRule> loadExtensionRules() {
         List<IncidentRule> loaded = new ArrayList<>();
-        ServiceLoader.load(IncidentRuleProvider.class).forEach(provider -> {
-            List<IncidentRule> provided = provider.rules();
-            if (provided != null) {
-                provided.stream().filter(rule -> rule != null).forEach(loaded::add);
-            }
-        });
+        try {
+            ServiceLoader.load(IncidentRuleProvider.class).forEach(provider -> {
+                try {
+                    List<IncidentRule> provided = provider.rules();
+                    if (provided != null) {
+                        provided.stream().filter(rule -> rule != null).forEach(loaded::add);
+                    }
+                } catch (RuntimeException e) {
+                    LOG.warn("Skipping IncidentRuleProvider {} because rules() failed: {}",
+                            provider.getClass().getName(), e.toString());
+                }
+            });
+        } catch (ServiceConfigurationError error) {
+            LOG.warn("Stopping IncidentRuleProvider discovery after ServiceLoader failure: {}", error.toString());
+        }
         return List.copyOf(loaded);
     }
 
@@ -99,19 +120,47 @@ public class IncidentDetector {
                 Incident matched = incident.get();
                 String evidence = matched.evidence();
                 List<String> reasons = evidence == null || evidence.isBlank()
-                        ? List.of("Matched deterministic rule " + rule.getClass().getSimpleName())
+                        ? List.of("Matched deterministic rule " + ruleName(rule))
                         : List.of(
-                                "Matched deterministic rule " + rule.getClass().getSimpleName(),
+                                "Matched deterministic rule " + ruleName(rule),
                                 "Matching evidence: " + firstLine(evidence)
                         );
-                return Optional.of(new Detection(matched, rule.getClass().getSimpleName(), reasons));
+                return Optional.of(new Detection(matched, ruleName(rule), reasons));
             }
         }
         return Optional.empty();
     }
 
+    private static String ruleName(IncidentRule rule) {
+        return rule instanceof SafeExtensionRule safe ? safe.delegateName() : rule.getClass().getSimpleName();
+    }
+
     private static String firstLine(String value) {
         return value.lines().findFirst().orElse(value).trim();
+    }
+
+    private static final class SafeExtensionRule implements IncidentRule {
+        private final IncidentRule delegate;
+
+        private SafeExtensionRule(IncidentRule delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Optional<Incident> match(RuleContext context) {
+            try {
+                Optional<Incident> result = delegate.match(context);
+                return result == null ? Optional.empty() : result;
+            } catch (RuntimeException e) {
+                LOG.warn("Skipping extension rule {} after match failure: {}", delegateName(), e.toString());
+                return Optional.empty();
+            }
+        }
+
+        private String delegateName() {
+            String simpleName = delegate.getClass().getSimpleName();
+            return simpleName.isBlank() ? delegate.getClass().getName() : simpleName;
+        }
     }
 
     public record Detection(
