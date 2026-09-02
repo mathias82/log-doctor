@@ -24,6 +24,8 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - deterministic rule-quality matrix protecting precedence and representative false-positive behavior in CI
 - stack-trace-aware incident grouping that ignores volatile source line numbers while preserving stable call-path identity
 - grouping explainability in the dashboard with the exception type and stable call-path frames used for deduplication
+- structured remediation safety metadata with allowed action types and verification steps
+- dashboard remediation guardrails showing human-review requirements and explicitly disabled automatic execution
 - multi-incident failure-block parsing, fingerprinting and deduplication
 - one optional local-LLM enrichment per unique unknown fingerprint in batch mode
 - timeline, correlations, root-cause candidates and spike detection
@@ -140,9 +142,9 @@ The file-first UI accepts `.log`, `.txt`, and `text/plain` inputs up to 5 MB. Fi
 
 Batch analysis processes up to 500 detected failure blocks and reports `truncated=true` when the cap is exceeded. Clean logs return zero detected failure blocks instead of a synthetic incident.
 
-Each grouped incident now carries the representative diagnosis metadata end-to-end: `causeChain`, `matchReasons`, `matchScore`, `matchConfidence` and `matchScoreFactors`. The dashboard renders the match-strength badge and exposes **Why matched**, **Cause chain**, and **Match score factors** alongside root cause, evidence and remediation. Match strength is an auditable evidence score, not a probability and never overrides `NO_AUTOMATIC_FIX`.
+Each grouped incident carries deterministic match and safety context. The dashboard exposes **Why matched**, **Grouping signature**, **Cause chain**, **Match score factors**, root cause, evidence and remediation. It also derives the remediation guardrails from the same category/fix-policy contract used by the backend: a safety state, allowed action types and category-specific verification steps. Automatic remediation execution remains explicitly disabled; these fields are guidance for reviewed operator action, not an auto-fix engine.
 
-When stack traces are present, batch grouping also incorporates a stable call-path signature: deepest visible exception/error type plus up to three frames, with source line numbers removed. This keeps the same failure grouped across builds while preventing unrelated call sites with the same diagnosis text from collapsing into one incident. The incident detail view exposes that grouping signature directly, showing the exception type and normalized call-path frames so users can see why failures were grouped together. When no stack signal exists, the UI explicitly reports that grouping fell back to the diagnosis fingerprint. See [docs/stack-trace-fingerprinting.md](docs/stack-trace-fingerprinting.md).
+When stack traces are present, batch grouping incorporates a stable call-path signature: deepest visible exception/error type plus up to three frames, with source line numbers removed. This keeps the same failure grouped across builds while preventing unrelated call sites with the same diagnosis text from collapsing into one incident. See [docs/stack-trace-fingerprinting.md](docs/stack-trace-fingerprinting.md).
 
 The dashboard also shows incident grouping, severity/confidence/category, deterministic-vs-Ollama provenance, human-review state, fix policy, timeline, investigation order, likely correlations, scored root-cause chain candidates, spikes, raw structured JSON and a downloadable Markdown incident report.
 
