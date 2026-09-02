@@ -17,6 +17,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - deterministic incident detection before AI
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
 - pluggable deterministic rule providers through Java `ServiceLoader`, with built-in precedence preserved
+- fail-soft isolation for third-party rule/provider failures so broken extensions cannot take down core diagnosis
 - Spring Boot startup failure-analysis extraction with `Description` / `Action` guidance
 - deterministic nested exception cause-chain extraction
 - explicit `WHY MATCHED` explanations and auditable 0-100 match-strength scoring
@@ -122,6 +123,8 @@ Match confidence is evidence strength only. It never grants execution permission
 ## Custom deterministic rules
 
 `IncidentRuleProvider` lets an application or separate JAR add deterministic rules without changing Log Doctor core. Providers are discovered through Java `ServiceLoader` and their rules run after specialized built-ins but before `CommonFailureCatalogRule`, so custom diagnostics can refine generic catalog matches without silently replacing higher-fidelity built-in rules.
+
+Extension code is isolated at the SPI boundary: provider discovery/rule-list failures are logged and skipped, and a custom rule that throws or returns `null` is treated as no match so diagnosis can continue to the next extension or built-in catalog rule. Core built-in failures remain visible rather than being swallowed.
 
 Embedded applications can also construct `IncidentDetector` with an explicit `List<IncidentRule>` instead of classpath discovery. Custom rules remain subject to the same downstream fix-policy and remediation-safety contracts; they do not enable automatic execution.
 

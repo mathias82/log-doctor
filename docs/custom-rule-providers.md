@@ -46,6 +46,17 @@ The order is deliberate:
 
 That means custom rules can refine failures that would otherwise fall into the broad deterministic catalog, but cannot silently replace Log Doctor's higher-fidelity specialized diagnoses.
 
+## Failure isolation
+
+Third-party extension code must not be able to take down core diagnosis. Log Doctor therefore isolates extension failures at the SPI boundary:
+
+- if a provider throws while building its rule list, that provider is skipped and a warning is logged
+- if ServiceLoader discovery encounters an invalid provider configuration, already-loaded providers remain usable and discovery stops with a warning
+- if an extension rule throws during `match`, that rule is treated as no match and diagnosis continues with the next rule
+- if an extension rule violates the contract by returning `null` instead of `Optional`, it is also treated as no match
+
+This fail-soft behavior applies only to extension rules. Built-in rule failures are not silently swallowed, because they represent Log Doctor core defects that should remain visible to tests and operators.
+
 ## Programmatic registration
 
 Embedded applications that do not want classpath-wide discovery can pass rules explicitly:
@@ -54,7 +65,7 @@ Embedded applications that do not want classpath-wide discovery can pass rules e
 IncidentDetector detector = new IncidentDetector(List.of(new AcmePaymentFailureRule()));
 ```
 
-The same precedence applies: explicit extension rules are inserted after specialized built-ins and before the common catalog.
+The same precedence and failure-isolation behavior applies: explicit extension rules are inserted after specialized built-ins and before the common catalog.
 
 ## Safety
 

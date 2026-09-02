@@ -41,6 +41,47 @@ class IncidentRuleProviderTest {
     }
 
     @Test
+    void failingExtensionRuleDoesNotBreakCatalogFallback() {
+        IncidentRule broken = context -> {
+            throw new IllegalStateException("plugin exploded");
+        };
+
+        var detection = new IncidentDetector(List.of(broken))
+                .detectDetailed(context("java.lang.ClassNotFoundException: com.acme.LegacyAdapter"));
+
+        assertThat(detection).isPresent();
+        assertThat(detection.orElseThrow().incident().type()).isEqualTo("ClassNotFoundException");
+    }
+
+    @Test
+    void nullOptionalFromExtensionIsTreatedAsNoMatch() {
+        IncidentRule brokenContract = context -> null;
+
+        var detection = new IncidentDetector(List.of(brokenContract))
+                .detectDetailed(context("java.lang.ClassNotFoundException: com.acme.LegacyAdapter"));
+
+        assertThat(detection).isPresent();
+        assertThat(detection.orElseThrow().incident().type()).isEqualTo("ClassNotFoundException");
+    }
+
+    @Test
+    void extensionRuleNameIsPreservedInDetectionEvidence() {
+        class NamedExtensionRule implements IncidentRule {
+            @Override
+            public Optional<Incident> match(RuleContext context) {
+                return Optional.of(customIncident("CUSTOM_NAMED"));
+            }
+        }
+
+        var detection = new IncidentDetector(List.of(new NamedExtensionRule()))
+                .detectDetailed(context("custom failure"))
+                .orElseThrow();
+
+        assertThat(detection.rule()).isEqualTo("NamedExtensionRule");
+        assertThat(detection.reasons()).first().asString().contains("NamedExtensionRule");
+    }
+
+    @Test
     void providerCanExposeMultipleRules() {
         IncidentRule first = context -> Optional.empty();
         IncidentRule second = context -> Optional.of(customIncident("SECOND_RULE"));
