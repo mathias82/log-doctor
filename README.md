@@ -24,6 +24,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - stack-trace-aware grouping with deepest-cause frame association, module/native frame support and dashboard grouping explainability
 - structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
 - versioned HTTP API contract signal for CI/CD, monitoring and external integrations
+- privacy-safe runtime observability for analysis volume, deterministic/unknown outcomes, local LLM usage, failures and latency
 - full specialized Kafka operational diagnostic matrix with Schema Registry context guards and negative cases
 - release provenance, CycloneDX SBOM attestation, SHA-256 integrity metadata and pull-request dependency review
 - structured remediation metadata returned by both single and grouped diagnosis APIs
@@ -116,6 +117,12 @@ Example remediation fragment present on a single diagnosis or grouped incident:
 ```
 
 Match confidence is evidence strength only. It never grants execution permission and never overrides `NO_AUTOMATIC_FIX`.
+
+## Runtime observability
+
+The embedded web server exposes aggregate process-local operational metrics at `GET /api/metrics`. The metrics surface tracks completed analyses, deterministic and unknown outcomes, no-failure results, local LLM usage, analysis errors, and average/maximum analysis latency.
+
+The endpoint intentionally excludes raw logs, evidence, prompts, exception messages and LLM responses. Metrics reset on process restart and are intended as a lightweight baseline for local operations and future Prometheus/OpenTelemetry adapters. See [docs/runtime-observability.md](docs/runtime-observability.md).
 
 ## Kafka diagnostic quality
 
