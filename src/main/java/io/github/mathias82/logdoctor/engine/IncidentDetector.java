@@ -40,11 +40,12 @@ public class IncidentDetector {
             new UnknownHostRule(),
             new UnsupportedOperationRule(),
             new ConcurrentModificationRule(),
-            new NoSuchMethodErrorRule(),
+            new NoSuchMethodError(),
             new BeanCurrentlyInCreationRule(),
             new AccessDeniedExceptionRule(),
-            new KafkaJsonDeserializationRule()
-            );
+            new KafkaJsonDeserializationRule(),
+            new CommonFailureCatalogRule()
+    );
 
     public Optional<Incident> detect(RuleContext context) {
         return rules.stream()
