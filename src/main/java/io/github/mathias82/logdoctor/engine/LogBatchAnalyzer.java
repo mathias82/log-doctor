@@ -59,8 +59,8 @@ public final class LogBatchAnalyzer {
         for (FailureBlock block : blocks.stream().limit(MAX_INCIDENT_BLOCKS).toList()) {
             var result = engine.analyzeStructured(block.text(), false);
             if ("NO_FAILURE".equals(result.status())) continue;
-            String fingerprint = fingerprint(result);
-            groups.computeIfAbsent(fingerprint, ignored -> new MutableGroup(result, block.text())).addOccurrence(block.timestamp());
+            String fingerprint = fingerprint(result, block.text());
+            groups.computeIfAbsent(fingerprint, ignored -> new MutableGroup(result, block.text(), fingerprint)).addOccurrence(block.timestamp());
             diagnosedEvents.add(new DiagnosedEvent(fingerprint, result.type(), result.severity(), block.timestamp()));
         }
         enrichUnknownGroups(groups);
@@ -141,8 +141,10 @@ public final class LogBatchAnalyzer {
         if (raw.endsWith("Z") || raw.matches(".*[+-]\\d{2}:\\d{2}$")) return raw;
         return raw.replaceFirst("([+-]\\d{2})(\\d{2})$", "$1:$2");
     }
-    private static String fingerprint(DiagnosisEngine.DiagnosisResult result) {
-        return normalize(result.type()) + "|" + normalize(result.category()) + "|" + normalizeRootCause(result.rootCause());
+    private static String fingerprint(DiagnosisEngine.DiagnosisResult result, String rawLog) {
+        String base = normalize(result.type()) + "|" + normalize(result.category()) + "|" + normalizeRootCause(result.rootCause());
+        String stackSignature = StackTraceFingerprint.signature(rawLog);
+        return stackSignature.isBlank() ? base : base + "|" + stackSignature;
     }
     private static String normalize(String value) { return value == null ? "" : value.trim().toLowerCase(Locale.ROOT); }
     private static String normalizeRootCause(String value) {
@@ -224,8 +226,8 @@ public final class LogBatchAnalyzer {
     private static String emptyReport() { return "# Log Doctor Incident Report\n\nNo log content was provided.\n"; }
 
     private static final class MutableGroup {
-        private DiagnosisEngine.DiagnosisResult sample; private final String representativeLog; private int count; private ParsedTimestamp firstSeen; private ParsedTimestamp lastSeen;
-        private MutableGroup(DiagnosisEngine.DiagnosisResult sample, String representativeLog) { this.sample=sample; this.representativeLog=representativeLog; }
+        private DiagnosisEngine.DiagnosisResult sample; private final String representativeLog; private final String fingerprint; private int count; private ParsedTimestamp firstSeen; private ParsedTimestamp lastSeen;
+        private MutableGroup(DiagnosisEngine.DiagnosisResult sample, String representativeLog, String fingerprint) { this.sample=sample; this.representativeLog=representativeLog; this.fingerprint=fingerprint; }
         private DiagnosisEngine.DiagnosisResult sample(){return sample;} private String representativeLog(){return representativeLog;} private void replaceSample(DiagnosisEngine.DiagnosisResult enriched){sample=enriched;}
         private void addOccurrence(ParsedTimestamp timestamp) {
             count++; if(timestamp==null)return; if(firstSeen==null){firstSeen=timestamp;lastSeen=timestamp;return;}
@@ -233,7 +235,7 @@ public final class LogBatchAnalyzer {
             Long fromLast=secondsBetween(lastSeen,timestamp); if(fromLast!=null&&fromLast>=0)lastSeen=timestamp;
         }
         private IncidentGroup snapshot() {
-            return new IncidentGroup(fingerprint(sample), count, sample.type(), sample.category(), sample.severity(), sample.confidence(), sample.summary(),
+            return new IncidentGroup(fingerprint, count, sample.type(), sample.category(), sample.severity(), sample.confidence(), sample.summary(),
                     sample.rootCause(), sample.location(), sample.fixType(), sample.fix(), sample.humanReviewRequired(), sample.llmUsed(), sample.evidence(),
                     firstSeen==null?null:firstSeen.raw(), lastSeen==null?null:lastSeen.raw(), sample.causeChain(), sample.matchReasons(), sample.matchScore(),
                     sample.matchConfidence(), sample.matchScoreFactors());
