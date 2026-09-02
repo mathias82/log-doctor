@@ -16,6 +16,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
 - deterministic nested exception cause-chain extraction
 - explicit `WHY MATCHED` explanations for deterministic diagnoses
+- auditable 0-100 deterministic match-strength scoring
 - multi-incident failure-block parsing, fingerprinting and deduplication
 - one optional local-LLM enrichment per unique unknown fingerprint in batch mode
 - timeline, correlations, root-cause candidates and spike detection
@@ -144,7 +145,7 @@ Cause-chain extraction
           ↓
 Deterministic-only DiagnosisEngine pass
           ↓
-Rule match explanation
+Rule match explanation + match-strength score
           ↓
 Fingerprint + deduplicate
           ↓
@@ -175,6 +176,30 @@ CAUSE CHAIN:
 WHY MATCHED:
 - Matched deterministic rule BeanCreationExceptionRule
 - Matching evidence: org.springframework.beans.factory.BeanCreationException: failed to create bean
+```
+
+## Deterministic match scoring
+
+Known deterministic diagnoses now include an evidence-strength score. This is **not a probability** and does not estimate the chance that a diagnosis is correct. It is an auditable 0-100 score derived from deterministic signals such as a rule match, extracted evidence, a matching exception in the visible cause chain, and whether a specialized rule matched before the broad catalog.
+
+Structured API fields:
+
+```text
+matchScore
+matchConfidence
+matchScoreFactors
+```
+
+Confidence bands are `LOW`, `MEDIUM`, `HIGH`, and `VERY_HIGH`. Unknown failures use score `0` / `NONE` because no deterministic rule matched. Protected concurrency and business-invariant fallbacks remain high-confidence human-review paths and do not become automatically fixable because of a high score.
+
+Example text output:
+
+```text
+MATCH SCORE: 100/100 (VERY_HIGH)
+- Deterministic rule matched (+55)
+- Matching evidence was extracted (+20)
+- Incident type appears in the visible cause chain (+15)
+- Specialized rule matched before the broad catalog (+10)
 ```
 
 ## HTTP API
