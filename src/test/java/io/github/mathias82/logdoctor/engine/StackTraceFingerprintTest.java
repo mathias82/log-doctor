@@ -19,8 +19,27 @@ class StackTraceFingerprintTest {
                     at com.acme.OrderController.get(OrderController.java:33)
                 """;
 
-        assertThat(StackTraceFingerprint.signature(first))
-                .isEqualTo(StackTraceFingerprint.signature(second));
+        assertThat(StackTraceFingerprint.signature(first)).isEqualTo(StackTraceFingerprint.signature(second));
+    }
+
+    @Test
+    void exposesStructuredMetadataWithoutReparsingSignatureDelimiters() {
+        String log = """
+                java.lang.IllegalStateException: wrapper
+                    at com.acme.OrderService.load(OrderService.java:41)
+                Caused by: java.net.SocketTimeoutException: timed out
+                    at com.acme.Client.call(Client.java:21)
+                    at com.acme.HttpTransport.send(HttpTransport.java:12)
+                """;
+
+        var metadata = StackTraceFingerprint.metadata(log);
+
+        assertThat(metadata.exceptionType()).isEqualTo("java.net.sockettimeoutexception");
+        assertThat(metadata.frames()).containsExactly(
+                "com.acme.client.call(client.java)",
+                "com.acme.httptransport.send(httptransport.java)");
+        assertThat(metadata.lineNumbersIgnored()).isTrue();
+        assertThat(metadata.hasStackTraceSignal()).isTrue();
     }
 
     @Test
@@ -34,8 +53,7 @@ class StackTraceFingerprintTest {
                     at com.acme.PaymentService.charge(PaymentService.java:41)
                 """;
 
-        assertThat(StackTraceFingerprint.signature(first))
-                .isNotEqualTo(StackTraceFingerprint.signature(second));
+        assertThat(StackTraceFingerprint.signature(first)).isNotEqualTo(StackTraceFingerprint.signature(second));
     }
 
     @Test
@@ -59,7 +77,6 @@ class StackTraceFingerprintTest {
                 com.acme.FatalThrowable: fatal
                     at com.acme.Worker.run(Worker.java:8)
                 """;
-
         assertThat(StackTraceFingerprint.signature(log)).startsWith("com.acme.fatalthrowable|");
     }
 
@@ -70,7 +87,6 @@ class StackTraceFingerprintTest {
                     at java.base/java.lang.Thread.run(Native Method)
                     at com.acme.Generated.invoke(Unknown Source)
                 """;
-
         assertThat(StackTraceFingerprint.signature(log))
                 .contains("java.lang.thread.run(native method)")
                 .contains("com.acme.generated.invoke(unknown source)");
@@ -86,13 +102,15 @@ class StackTraceFingerprintTest {
                 Caused by: java.net.SocketTimeoutException: timed out
                     at com.acme.Client.call(Client.java:21)
                 """;
-
         assertThat(StackTraceFingerprint.signature(log))
                 .startsWith("java.net.sockettimeoutexception|com.acme.client.call(client.java)");
     }
 
     @Test
-    void returnsEmptySignatureWithoutStackTraceSignal() {
+    void returnsEmptyMetadataWithoutStackTraceSignal() {
+        var metadata = StackTraceFingerprint.metadata("ERROR request failed");
         assertThat(StackTraceFingerprint.signature("ERROR request failed")).isEmpty();
+        assertThat(metadata.hasStackTraceSignal()).isFalse();
+        assertThat(metadata.frames()).isEmpty();
     }
 }
