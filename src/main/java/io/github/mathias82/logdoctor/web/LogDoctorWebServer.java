@@ -1,10 +1,14 @@
 package io.github.mathias82.logdoctor.web;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.github.mathias82.logdoctor.engine.DiagnosisEngine;
+import io.github.mathias82.logdoctor.engine.GroupingMetadata;
 import io.github.mathias82.logdoctor.engine.LogBatchAnalyzer;
 
 import java.io.IOException;
@@ -64,7 +68,23 @@ public final class LogDoctorWebServer {
 
     private static void handleBatchAnalyze(HttpExchange exchange, DiagnosisEngine engine) throws IOException {
         LogBatchAnalyzer batchAnalyzer = new LogBatchAnalyzer(engine);
-        handleLogRequest(exchange, batchAnalyzer::analyze);
+        handleLogRequest(exchange, log -> addGroupingMetadata(batchAnalyzer.analyze(log)));
+    }
+
+    private static JsonNode addGroupingMetadata(LogBatchAnalyzer.BatchDiagnosisResult result) {
+        ObjectNode root = JSON.valueToTree(result);
+        JsonNode incidentsNode = root.get("incidents");
+        if (!(incidentsNode instanceof ArrayNode incidents)) {
+            return root;
+        }
+        for (JsonNode incidentNode : incidents) {
+            if (!(incidentNode instanceof ObjectNode incident)) {
+                continue;
+            }
+            String fingerprint = incident.path("fingerprint").asText("");
+            incident.set("grouping", JSON.valueToTree(GroupingMetadata.fromFingerprint(fingerprint)));
+        }
+        return root;
     }
 
     private static void handleLogRequest(HttpExchange exchange, LogAnalysis analysis) throws IOException {
