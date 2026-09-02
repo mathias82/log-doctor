@@ -81,6 +81,33 @@ class DiagnosisEngineTest {
         assertThat(result.category()).isEqualTo("INFRASTRUCTURE");
     }
 
+    @Test
+    void exposesCauseChainForNestedExceptions() {
+        String log = """
+                org.springframework.beans.factory.BeanCreationException: failed to create bean
+                at com.acme.App.start(App.java:10)
+                Caused by: java.lang.IllegalStateException: client failed
+                at com.acme.Client.call(Client.java:20)
+                Caused by: java.net.ConnectException: Connection refused
+                """;
+
+        var result = engine.analyzeStructured(log);
+
+        assertThat(result.causeChain()).hasSize(3);
+        assertThat(result.causeChain().get(2).exceptionType()).isEqualTo("java.net.ConnectException");
+        assertThat(result.diagnosis()).contains("CAUSE CHAIN:");
+    }
+
+    @Test
+    void explainsWhyDeterministicRuleMatched() {
+        var result = engine.analyzeStructured("java.lang.NoClassDefFoundError: com/acme/Missing");
+
+        assertThat(result.type()).isEqualTo("NoClassDefFoundError");
+        assertThat(result.matchReasons()).isNotEmpty();
+        assertThat(result.matchReasons().get(0)).contains("CommonFailureCatalogRule");
+        assertThat(result.diagnosis()).contains("WHY MATCHED:");
+    }
+
     private static final class StubLlmClient implements LlmClient {
         @Override
         public String explainKnownIncident(Incident incident) {
