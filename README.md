@@ -21,6 +21,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - explicit `WHY MATCHED` explanations for deterministic diagnoses
 - auditable 0-100 deterministic match-strength scoring
 - grouped incidents retain cause chain, match reasons, match score and score factors in the batch API and dashboard
+- deterministic rule-quality matrix protecting precedence and representative false-positive behavior in CI
 - multi-incident failure-block parsing, fingerprinting and deduplication
 - one optional local-LLM enrichment per unique unknown fingerprint in batch mode
 - timeline, correlations, root-cause candidates and spike detection
@@ -142,6 +143,12 @@ Each grouped incident now carries the representative diagnosis metadata end-to-e
 The dashboard also shows incident grouping, severity/confidence/category, deterministic-vs-Ollama provenance, human-review state, fix policy, timeline, investigation order, likely correlations, scored root-cause chain candidates, spikes, raw structured JSON and a downloadable Markdown incident report.
 
 ![Incident detail preview](docs/images/incident-detail-preview.svg)
+
+## Rule quality matrix
+
+`DeterministicRuleQualityMatrixTest` provides an end-to-end regression baseline across representative JVM, Spring, Hibernate/JPA and Kafka failures. It asserts the exact deterministic rule that should win and includes benign log examples that must remain unmatched, protecting specialized-rule precedence as the broad catalog grows.
+
+See [docs/rule-quality-matrix.md](docs/rule-quality-matrix.md) for the contribution checklist and current coverage.
 
 ## API
 
