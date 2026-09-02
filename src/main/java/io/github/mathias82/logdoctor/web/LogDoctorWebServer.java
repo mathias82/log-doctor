@@ -20,6 +20,9 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 
 public final class LogDoctorWebServer {
+    public static final String API_VERSION = "1";
+    public static final String API_VERSION_HEADER = "X-Log-Doctor-Api-Version";
+
     static final int MAX_LOG_BYTES = 5 * 1024 * 1024;
     private static final int JSON_OVERHEAD_BYTES = 64 * 1024;
     private static final int MAX_JSON_BYTES_PER_LOG_BYTE = 6;
@@ -59,7 +62,7 @@ public final class LogDoctorWebServer {
 
     private static void handleHealth(HttpExchange exchange) throws IOException {
         if (!requireMethod(exchange, "GET")) return;
-        writeJson(exchange, 200, Map.of("status", "UP"));
+        writeJson(exchange, 200, Map.of("status", "UP", "apiVersion", API_VERSION));
     }
 
     private static void handleAnalyze(HttpExchange exchange, DiagnosisEngine engine) throws IOException {
@@ -204,6 +207,7 @@ public final class LogDoctorWebServer {
 
     private static void applyCommonHeaders(HttpExchange exchange) {
         var headers = exchange.getResponseHeaders();
+        headers.set(API_VERSION_HEADER, API_VERSION);
         headers.set("X-Content-Type-Options", "nosniff");
         headers.set("X-Frame-Options", "DENY");
         headers.set("Referrer-Policy", "no-referrer");
