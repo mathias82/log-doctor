@@ -49,10 +49,34 @@ public class IncidentDetector {
     );
 
     public Optional<Incident> detect(RuleContext context) {
-        return rules.stream()
-                .map(rule -> rule.match(context))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .findFirst();
+        return detectDetailed(context).map(Detection::incident);
     }
+
+    public Optional<Detection> detectDetailed(RuleContext context) {
+        for (IncidentRule rule : rules) {
+            Optional<Incident> incident = rule.match(context);
+            if (incident.isPresent()) {
+                Incident matched = incident.get();
+                String evidence = matched.evidence();
+                List<String> reasons = evidence == null || evidence.isBlank()
+                        ? List.of("Matched deterministic rule " + rule.getClass().getSimpleName())
+                        : List.of(
+                                "Matched deterministic rule " + rule.getClass().getSimpleName(),
+                                "Matching evidence: " + firstLine(evidence)
+                        );
+                return Optional.of(new Detection(matched, rule.getClass().getSimpleName(), reasons));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static String firstLine(String value) {
+        return value.lines().findFirst().orElse(value).trim();
+    }
+
+    public record Detection(
+            Incident incident,
+            String rule,
+            List<String> reasons
+    ) {}
 }
