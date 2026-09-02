@@ -20,8 +20,10 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - deterministic nested exception cause-chain extraction
 - explicit `WHY MATCHED` explanations and auditable 0-100 match-strength scoring
 - stack-trace-aware grouping with dashboard grouping explainability
-- structured remediation metadata returned by the diagnosis API
+- structured remediation metadata returned by both single and grouped diagnosis APIs
 - remediation safety state, allowed action types and category-specific verification steps
+- Markdown reports include remediation safety, allowed actions and verification steps
+- dashboard renders backend-owned remediation metadata without duplicating policy logic client-side
 - explicit `NO_AUTOMATIC_FIX` policy and disabled automatic execution
 - multi-incident parsing, fingerprinting, deduplication, timelines, correlations, root-cause candidates and spike detection
 - optional local-Ollama enrichment only after deterministic analysis
@@ -54,7 +56,9 @@ Default bind: `127.0.0.1:8080`.
 
 The file-first UI accepts `.log`, `.txt`, and `text/plain` inputs up to 5 MB. Files are read by the browser and sent as JSON for analysis; they are not persisted by the server.
 
-Each diagnosis now carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, and `automaticExecutionAllowed`. Unknown, infrastructure, business and other protected cases remain human-review-only. Automatic execution is currently always `false`.
+Each diagnosis carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, and `automaticExecutionAllowed`. The same object is preserved on grouped incidents returned by `/api/analyze/batch`, written into the Markdown report, and rendered directly by the dashboard. The browser no longer maintains its own category-to-remediation mapping.
+
+Unknown, infrastructure, business and other protected cases remain human-review-only. Automatic execution is currently always `false`.
 
 The dashboard shows match evidence, grouping signature, cause chain, remediation guardrails, provenance, timeline, investigation order, correlations, root-cause candidates and spikes.
 
@@ -62,14 +66,17 @@ The dashboard shows match evidence, grouping signature, cause chain, remediation
 
 `POST /api/analyze` returns one structured diagnosis. `POST /api/analyze/batch` returns grouped incidents and advanced batch insights. Both accept JSON with a `log` string.
 
-Example remediation fragment:
+Example remediation fragment present on a single diagnosis or grouped incident:
 
 ```json
 {
   "remediation": {
     "safety": "REVIEW_BEFORE_APPLY",
-    "allowedActions": ["JAVA_CODE"],
-    "verificationSteps": ["Reproduce the failure", "Verify the diagnosis with focused tests before rollout"],
+    "allowedActions": ["SPRING_CONFIG"],
+    "verificationSteps": [
+      "Validate the effective runtime configuration",
+      "Restart only after reviewing the configuration diff"
+    ],
     "automaticExecutionAllowed": false
   }
 }
