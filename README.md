@@ -16,6 +16,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 
 - deterministic incident detection before AI
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
+- Spring Boot startup failure-analysis extraction with `Description` / `Action` guidance
 - deterministic nested exception cause-chain extraction
 - explicit `WHY MATCHED` explanations for deterministic diagnoses
 - auditable 0-100 deterministic match-strength scoring
@@ -179,9 +180,30 @@ CAUSE CHAIN:
 - line 4: java.net.ConnectException: Connection refused
 
 WHY MATCHED:
-- Matched deterministic rule BeanCreationExceptionRule
+- Matched deterministic rule CommonFailureCatalogRule
 - Matching evidence: org.springframework.beans.factory.BeanCreationException: failed to create bean
 ```
+
+## Spring Boot startup diagnostics
+
+When Spring Boot emits its standard `APPLICATION FAILED TO START` failure-analysis banner, Log Doctor treats that report as structured deterministic evidence instead of reducing it to a generic wrapper failure. It extracts `Description:` as root-cause guidance and `Action:` as remediation. When those sections are missing, it falls back to the deepest visible `Caused by:` line.
+
+Example:
+
+```text
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+Parameter 0 of constructor in com.acme.OrderService required a bean of type
+'com.acme.PaymentClient' that could not be found.
+
+Action:
+Consider defining a bean of type 'com.acme.PaymentClient' in your configuration.
+```
+
+This becomes a deterministic `SPRING_BOOT_STARTUP_FAILURE` diagnosis with Spring configuration remediation and no Ollama dependency for the startup explanation itself. More specific Spring rules still run first and retain precedence.
 
 ## Deterministic match scoring
 
@@ -203,7 +225,7 @@ Example text output:
 MATCH SCORE: 100/100 (VERY_HIGH)
 - Deterministic rule matched (+55)
 - Matching evidence was extracted (+20)
-- Incident type appears in the visible cause chain (+15)
+- Visible cause chain supports the matched incident (+15)
 - Specialized rule matched before the broad catalog (+10)
 ```
 
@@ -259,7 +281,7 @@ Required repository secrets are `MAVEN_USERNAME`, `MAVEN_PASSWORD`, `MAVEN_GPG_P
 
 ## Supported incidents
 
-Specialized deterministic rules handle high-fidelity cases first. A broad catalog then covers 80+ common Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry failures before unknown incidents reach optional local Ollama reasoning. This includes JVM linkage/classpath failures, Spring bean and transaction failures, Hibernate/JPA locking/mapping/JDBC failures, Kafka auth/ACL/replication/consumer/transaction errors, and Schema Registry failures.
+Specialized deterministic rules handle high-fidelity cases first. A broad catalog then covers 80+ common Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry failures before unknown incidents reach optional local Ollama reasoning. This includes JVM linkage/classpath failures, Spring bean, startup and transaction failures, Hibernate/JPA locking/mapping/JDBC failures, Kafka auth/ACL/replication/consumer/transaction errors, and Schema Registry failures.
 
 See `docs/supported-errors.md` and `docs/incidents.md` for the current rule catalog.
 
