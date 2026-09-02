@@ -24,6 +24,15 @@ test('dashboard renders backend remediation playbook phases', () => {
   assert.match(appSource, /Investigation guidance only · never executed automatically/);
 });
 
+test('dashboard consumes structured grouping metadata instead of fingerprint delimiters', () => {
+  assert.match(appSource, /groupingBlock\(i\.grouping\)/);
+  assert.match(appSource, /grouping\.exceptionType/);
+  assert.match(appSource, /grouping\.frames/);
+  assert.match(appSource, /grouping\.lineNumbersIgnored/);
+  assert.doesNotMatch(appSource, /fingerprint\.split\('\|'\)/);
+  assert.doesNotMatch(appSource, /split\('>'\)/);
+});
+
 test('dashboard does not duplicate category remediation policy', () => {
   assert.doesNotMatch(appSource, /INFRASTRUCTURE:\s*\[/);
   assert.doesNotMatch(appSource, /CONFIGURATION:\s*\[/);
