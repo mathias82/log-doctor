@@ -22,6 +22,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - explicit `WHY MATCHED` explanations and auditable 0-100 match-strength scoring
 - stack-trace-aware grouping with deepest-cause frame association, module/native frame support and dashboard grouping explainability
 - structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
+- versioned HTTP API contract signal for CI/CD, monitoring and external integrations
 - structured remediation metadata returned by both single and grouped diagnosis APIs
 - remediation safety state, allowed action types and incident-aware verification steps
 - typed remediation profiles centralize incident-to-guidance routing so playbooks and verification cannot drift independently
@@ -76,6 +77,8 @@ Stack-aware grouping associates the selected deepest visible exception/error/thr
 ## API
 
 `POST /api/analyze` returns one structured diagnosis. `POST /api/analyze/batch` returns grouped incidents and advanced batch insights. Both accept JSON with a `log` string.
+
+Every HTTP response includes `X-Log-Doctor-Api-Version: 1`, and `/api/health` also exposes `apiVersion`. Integrations can validate this contract version before processing a response without changing the existing JSON payload shapes. See [docs/api-contract.md](docs/api-contract.md).
 
 Example grouping fragment on a grouped incident:
 
