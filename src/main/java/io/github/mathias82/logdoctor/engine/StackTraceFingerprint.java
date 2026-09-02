@@ -14,7 +14,13 @@ final class StackTraceFingerprint {
     private StackTraceFingerprint() {}
 
     static String signature(String rawLog) {
-        if (rawLog == null || rawLog.isBlank()) return "";
+        Metadata metadata = metadata(rawLog);
+        if (!metadata.hasStackTraceSignal()) return "";
+        return metadata.exceptionType() + "|" + String.join(">", metadata.frames());
+    }
+
+    static Metadata metadata(String rawLog) {
+        if (rawLog == null || rawLog.isBlank()) return Metadata.none();
 
         String currentException = "";
         String deepestException = "";
@@ -40,8 +46,8 @@ final class StackTraceFingerprint {
             }
         }
 
-        if (deepestException.isBlank()) return "";
-        return deepestException + "|" + String.join(">", deepestFrames);
+        if (deepestException.isBlank()) return Metadata.none();
+        return new Metadata(deepestException, List.copyOf(deepestFrames), true);
     }
 
     private static String normalizeFrame(String method, String source) {
@@ -51,5 +57,15 @@ final class StackTraceFingerprint {
         }
         normalizedSource = normalizedSource.replaceFirst(":\\d+$", "");
         return (method + "(" + normalizedSource + ")").toLowerCase(Locale.ROOT);
+    }
+
+    record Metadata(String exceptionType, List<String> frames, boolean lineNumbersIgnored) {
+        static Metadata none() {
+            return new Metadata("", List.of(), true);
+        }
+
+        boolean hasStackTraceSignal() {
+            return exceptionType != null && !exceptionType.isBlank();
+        }
     }
 }
