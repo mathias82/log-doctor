@@ -45,6 +45,7 @@ public class IncidentDetector {
             new AccessDeniedExceptionRule(),
             new KafkaJsonDeserializationRule(),
             new PersistenceConcurrencyRule(),
+            new SpringBootStartupFailureRule(),
             new CommonFailureCatalogRule()
     );
 

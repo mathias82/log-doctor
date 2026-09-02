@@ -48,8 +48,11 @@ Representative coverage includes:
 - query timeout and optimistic-lock failures
 - `TransactionSystemException`
 - `UnexpectedRollbackException`
+- Spring Boot `APPLICATION FAILED TO START` failure-analysis output
 
-Specialized rules retain precedence for existing Spring configuration/profile, validation, missing-bean and HTTP-message diagnoses.
+When Spring Boot emits its standard startup failure banner, Log Doctor deterministically extracts the `Description:` section as root-cause guidance and the `Action:` section as remediation. If those structured sections are missing, it falls back to the deepest visible `Caused by:` line instead of treating the startup wrapper itself as the root cause.
+
+Specialized rules retain precedence for existing Spring configuration/profile, validation, missing-bean and HTTP-message diagnoses. The Spring Boot startup rule is also registered before the broad common catalog, so a framework-level startup report is not reduced to a generic catalog match when no richer rule has already matched.
 
 ## Hibernate / JPA / JDBC / HikariCP
 
