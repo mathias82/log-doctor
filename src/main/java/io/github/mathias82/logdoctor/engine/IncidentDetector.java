@@ -40,7 +40,7 @@ public class IncidentDetector {
             new UnknownHostRule(),
             new UnsupportedOperationRule(),
             new ConcurrentModificationRule(),
-            new NoSuchMethodError(),
+            new NoSuchMethodErrorRule(),
             new BeanCurrentlyInCreationRule(),
             new AccessDeniedExceptionRule(),
             new KafkaJsonDeserializationRule(),
