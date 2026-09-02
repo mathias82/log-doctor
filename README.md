@@ -13,6 +13,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 ## Key capabilities
 
 - deterministic incident detection before AI
+- broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
 - multi-incident failure-block parsing, fingerprinting and deduplication
 - one optional local-LLM enrichment per unique unknown fingerprint in batch mode
 - timeline, correlations, root-cause candidates and spike detection
@@ -204,7 +205,7 @@ Required repository secrets are `MAVEN_USERNAME`, `MAVEN_PASSWORD`, `MAVEN_GPG_P
 
 ## Supported incidents
 
-Representative deterministic rules include Hibernate `LazyInitializationException`, Spring bean/profile/configuration problems, Jackson/JSON deserialization failures, Kafka topic/schema failures, HikariCP timeouts, deadlocks/thread starvation, `OutOfMemoryError`, GC thrashing and common Java runtime exceptions.
+Specialized deterministic rules handle high-fidelity cases first. A broad catalog then covers 80+ common Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry failures before unknown incidents reach optional local Ollama reasoning. This includes JVM linkage/classpath failures, Spring bean and transaction failures, Hibernate/JPA locking/mapping/JDBC failures, Kafka auth/ACL/replication/consumer/transaction errors, and Schema Registry failures.
 
 See `docs/supported-errors.md` and `docs/incidents.md` for the current rule catalog.
 
@@ -218,4 +219,3 @@ See `CHANGELOG.md` and `docs/release-notes-0.4.0.md`.
 - Safety before automation
 - Local-first, privacy-first
 - Evidence before causation claims
-- Production realism over demos
