@@ -23,6 +23,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - grouped incidents retain cause chain, match reasons, match score and score factors in the batch API and dashboard
 - deterministic rule-quality matrix protecting precedence and representative false-positive behavior in CI
 - stack-trace-aware incident grouping that ignores volatile source line numbers while preserving stable call-path identity
+- grouping explainability in the dashboard with the exception type and stable call-path frames used for deduplication
 - multi-incident failure-block parsing, fingerprinting and deduplication
 - one optional local-LLM enrichment per unique unknown fingerprint in batch mode
 - timeline, correlations, root-cause candidates and spike detection
@@ -141,7 +142,7 @@ Batch analysis processes up to 500 detected failure blocks and reports `truncate
 
 Each grouped incident now carries the representative diagnosis metadata end-to-end: `causeChain`, `matchReasons`, `matchScore`, `matchConfidence` and `matchScoreFactors`. The dashboard renders the match-strength badge and exposes **Why matched**, **Cause chain**, and **Match score factors** alongside root cause, evidence and remediation. Match strength is an auditable evidence score, not a probability and never overrides `NO_AUTOMATIC_FIX`.
 
-When stack traces are present, batch grouping also incorporates a stable call-path signature: deepest visible exception/error type plus up to three frames, with source line numbers removed. This keeps the same failure grouped across builds while preventing unrelated call sites with the same diagnosis text from collapsing into one incident. See [docs/stack-trace-fingerprinting.md](docs/stack-trace-fingerprinting.md).
+When stack traces are present, batch grouping also incorporates a stable call-path signature: deepest visible exception/error type plus up to three frames, with source line numbers removed. This keeps the same failure grouped across builds while preventing unrelated call sites with the same diagnosis text from collapsing into one incident. The incident detail view exposes that grouping signature directly, showing the exception type and normalized call-path frames so users can see why failures were grouped together. When no stack signal exists, the UI explicitly reports that grouping fell back to the diagnosis fingerprint. See [docs/stack-trace-fingerprinting.md](docs/stack-trace-fingerprinting.md).
 
 The dashboard also shows incident grouping, severity/confidence/category, deterministic-vs-Ollama provenance, human-review state, fix policy, timeline, investigation order, likely correlations, scored root-cause chain candidates, spikes, raw structured JSON and a downloadable Markdown incident report.
 
