@@ -23,6 +23,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - stack-trace-aware grouping with deepest-cause frame association, module/native frame support and dashboard grouping explainability
 - structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
 - versioned HTTP API contract signal for CI/CD, monitoring and external integrations
+- full specialized Kafka operational diagnostic matrix with Schema Registry context guards and negative cases
 - structured remediation metadata returned by both single and grouped diagnosis APIs
 - remediation safety state, allowed action types and incident-aware verification steps
 - typed remediation profiles centralize incident-to-guidance routing so playbooks and verification cannot drift independently
@@ -113,6 +114,10 @@ Example remediation fragment present on a single diagnosis or grouped incident:
 ```
 
 Match confidence is evidence strength only. It never grants execution permission and never overrides `NO_AUTOMATIC_FIX`.
+
+## Kafka diagnostic quality
+
+`KafkaOperationalFailureRuleTest` covers all specialized Kafka operational incident types, including authorization, authentication, producer state, replication, consumer state, message sizing, metadata, and Schema Registry failures. Schema Registry authorization/compatibility matches require Schema Registry context so generic `401 Unauthorized` or ordinary `incompatible schema` text is not misclassified. See [docs/kafka-diagnostic-quality-matrix.md](docs/kafka-diagnostic-quality-matrix.md).
 
 ## Custom deterministic rules
 
