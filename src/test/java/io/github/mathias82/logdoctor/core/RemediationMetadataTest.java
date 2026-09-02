@@ -20,6 +20,7 @@ class RemediationMetadataTest {
         assertThat(metadata.allowedActions()).containsExactly("NO_AUTOMATIC_FIX");
         assertThat(metadata.verificationSteps()).contains("Confirm dependency health and connectivity");
         assertThat(metadata.automaticExecutionAllowed()).isFalse();
+        assertThat(metadata.playbook()).isNotNull();
     }
 
     @Test
@@ -48,29 +49,33 @@ class RemediationMetadataTest {
     }
 
     @Test
-    void givesHikariSpecificVerificationWithoutChangingSafetyPolicy() {
+    void givesHikariSpecificVerificationAndPlaybookWithoutChangingSafetyPolicy() {
         var incident = new HikariTimeoutIncident();
         var metadata = RemediationMetadata.from(incident, FixPolicy.allowedFixes(incident.category()));
 
         assertThat(metadata.verificationSteps())
                 .contains("Inspect HikariCP active, idle and pending connection metrics during the failure window")
                 .anyMatch(step -> step.contains("leaked or long-running database connections"));
+        assertThat(metadata.playbook().inspect()).anyMatch(step -> step.contains("active/idle/pending"));
+        assertThat(metadata.playbook().changeCandidates()).anyMatch(step -> step.contains("connection leaks"));
         assertThat(metadata.automaticExecutionAllowed()).isFalse();
     }
 
     @Test
-    void givesOutOfMemorySpecificEvidenceChecks() {
+    void givesOutOfMemorySpecificEvidenceChecksAndEscalationSignals() {
         var incident = new OutOfMemoryIncident();
         var metadata = RemediationMetadata.from(incident, FixPolicy.allowedFixes(incident.category()));
 
         assertThat(metadata.verificationSteps())
                 .anyMatch(step -> step.contains("heap dump"))
                 .anyMatch(step -> step.contains("container or host memory limits"));
+        assertThat(metadata.playbook().inspect()).anyMatch(step -> step.contains("Heap dump"));
+        assertThat(metadata.playbook().escalationSignals()).anyMatch(step -> step.contains("Native-memory"));
         assertThat(metadata.automaticExecutionAllowed()).isFalse();
     }
 
     @Test
-    void givesKafkaAuthorizationSpecificVerificationAndKeepsHumanReview() {
+    void givesKafkaAuthorizationPlaybookAndKeepsHumanReview() {
         var incident = new CatalogIncident(
                 "KAFKA_TOPIC_AUTHORIZATION_FAILED",
                 IncidentCategory.SECURITY,
@@ -87,11 +92,13 @@ class RemediationMetadataTest {
         assertThat(metadata.verificationSteps())
                 .anyMatch(step -> step.contains("authenticated Kafka or Schema Registry principal"))
                 .anyMatch(step -> step.contains("without weakening security controls"));
+        assertThat(metadata.playbook().changeCandidates()).anyMatch(step -> step.contains("minimum missing authorization"));
+        assertThat(metadata.playbook().escalationSignals()).anyMatch(step -> step.contains("Credential compromise"));
         assertThat(metadata.automaticExecutionAllowed()).isFalse();
     }
 
     @Test
-    void givesSpringBootStartupSpecificVerification() {
+    void givesSpringBootStartupSpecificVerificationAndPlaybook() {
         var incident = new CatalogIncident(
                 "SPRING_BOOT_STARTUP_FAILURE",
                 IncidentCategory.CONFIGURATION,
@@ -107,6 +114,29 @@ class RemediationMetadataTest {
         assertThat(metadata.verificationSteps())
                 .anyMatch(step -> step.contains("FailureAnalysis Description/Action"))
                 .anyMatch(step -> step.contains("same profile, environment and external dependencies"));
+        assertThat(metadata.playbook().inspect()).anyMatch(step -> step.contains("FailureAnalysis"));
+        assertThat(metadata.playbook().validate()).anyMatch(step -> step.contains("same profile and environment"));
+        assertThat(metadata.automaticExecutionAllowed()).isFalse();
+    }
+
+    @Test
+    void kafkaOffsetPlaybookRequiresExplicitDataRecoveryDecision() {
+        var incident = new CatalogIncident(
+                "KAFKA_OFFSET_OUT_OF_RANGE",
+                IncidentCategory.INFRASTRUCTURE,
+                Severity.HIGH,
+                Confidence.HIGH,
+                "Kafka consumer offsets",
+                "Offset unavailable",
+                "Offset outside retained range",
+                "Review offsets"
+        );
+        var metadata = RemediationMetadata.from(incident, FixPolicy.allowedFixes(incident.category()));
+
+        assertThat(metadata.playbook().changeCandidates())
+                .anyMatch(step -> step.contains("explicit data-recovery decision"));
+        assertThat(metadata.playbook().escalationSignals())
+                .anyMatch(step -> step.contains("lose business data"));
         assertThat(metadata.automaticExecutionAllowed()).isFalse();
     }
 }
