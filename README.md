@@ -14,6 +14,8 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 
 - deterministic incident detection before AI
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
+- deterministic nested exception cause-chain extraction
+- explicit `WHY MATCHED` explanations for deterministic diagnoses
 - multi-incident failure-block parsing, fingerprinting and deduplication
 - one optional local-LLM enrichment per unique unknown fingerprint in batch mode
 - timeline, correlations, root-cause candidates and spike detection
@@ -138,7 +140,11 @@ Raw Logs / Uploaded File
           ↓
 Failure-block detection
           ↓
+Cause-chain extraction
+          ↓
 Deterministic-only DiagnosisEngine pass
+          ↓
+Rule match explanation
           ↓
 Fingerprint + deduplicate
           ↓
@@ -152,6 +158,24 @@ Structured JSON + Web UI + Markdown report
 ```
 
 Correlation and root-cause scoring are heuristic evidence and do **not** prove causation.
+
+## Cause chains and why a rule matched
+
+For JVM stack traces, Log Doctor extracts visible nested exception chains in outer-to-deepest order. Structured API results include `causeChain`, with the line number, exception type, message and source evidence for each cause. Unknown failures use the deepest visible cause as their root-cause evidence.
+
+Deterministic diagnoses also expose `matchReasons`. The text diagnosis renders the same information under `WHY MATCHED`, including the exact rule class that matched and the rule evidence when available. This makes a deterministic decision auditable instead of returning only a final label.
+
+Example:
+
+```text
+CAUSE CHAIN:
+- line 1: org.springframework.beans.factory.BeanCreationException: failed to create bean
+- line 4: java.net.ConnectException: Connection refused
+
+WHY MATCHED:
+- Matched deterministic rule BeanCreationExceptionRule
+- Matching evidence: org.springframework.beans.factory.BeanCreationException: failed to create bean
+```
 
 ## HTTP API
 
@@ -218,4 +242,3 @@ See `CHANGELOG.md` and `docs/release-notes-0.4.0.md`.
 - Determinism before AI
 - Safety before automation
 - Local-first, privacy-first
-- Evidence before causation claims
