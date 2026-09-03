@@ -85,4 +85,4 @@ Log Doctor is investigation-first. Match confidence is evidence strength, not ex
 
 ## Documentation
 
-Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, observability, benchmarks, CI/SARIF integration, supply-chain security and release integrity.
+Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, observability, benchmarks, CI/SARIF integration, supply-chain security, release integrity and the [release-readiness checklist](docs/release-readiness.md).
