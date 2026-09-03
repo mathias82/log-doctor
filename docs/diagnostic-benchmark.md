@@ -24,9 +24,15 @@ CI writes the machine-readable result to `target/diagnostic-benchmark.json`, inc
 
 ## Corpus policy
 
-Positive cases cover representative JVM, Spring, Hibernate/JPA, JDBC/Hikari and Kafka failures. Negative cases contain operationally plausible but non-failing messages that should not be classified as incidents.
+Positive cases cover representative JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry failures. Negative cases contain operationally plausible but non-failing messages that should not be classified as incidents.
 
-New deterministic rules should add both positive examples and confusing negative examples. A rule should not improve recall by silently increasing false positives.
+The corpus also contains **hard negatives**: text that looks similar to a supported failure but belongs to a different system or context. Examples include ordinary HTTP `401` / `409` responses from Spring REST clients and generic schema-mismatch messages that must not be promoted to Kafka Schema Registry incidents.
+
+New deterministic rules should add both positive examples and confusing negative examples. A rule should not improve recall by silently increasing false positives. When a false-positive regression is fixed, the triggering log should remain in the corpus so the bug cannot reappear unnoticed.
+
+## Context-sensitive rules
+
+Rules that depend on a shared exception name should require subsystem evidence rather than treating the exception name alone as sufficient context. For example, Schema Registry matching requires Confluent/Schema Registry identifiers, a Schema Registry subject path, or explicit compatibility context. A generic `RestClientException` is not enough.
 
 ## Interpretation
 
