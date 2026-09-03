@@ -14,6 +14,14 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Coordinates the structured diagnosis pipeline: locate the failure, extract context,
+ * run deterministic rules, apply protected fallbacks, and use the optional local LLM
+ * only when policy and the caller allow it.
+ *
+ * <p>The engine owns diagnosis semantics and safety metadata. Presentation layers
+ * should consume {@link DiagnosisResult} rather than reimplementing policy.</p>
+ */
 public class DiagnosisEngine {
     private static final int CONTEXT_RADIUS = 8;
     private static final String NO_AUTOMATIC_FIX = "No safe automatic fix, human investigation required.";
