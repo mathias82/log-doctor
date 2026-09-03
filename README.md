@@ -17,6 +17,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - deterministic incident detection before AI
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
 - 120-case labelled diagnostic regression corpus with aggregate and per-category JVM/Spring/Kafka/DB precision, recall, false-positive and exact-rule quality gates
+- synthetic performance/load benchmark with p50/p95/p99 latency, throughput, approximate heap delta and 500-block safety-cap coverage
 - hard-negative regression cases for cross-system lookalikes such as generic HTTP failures versus Schema Registry errors
 - pluggable deterministic rule providers through Java `ServiceLoader`, with built-in precedence preserved
 - fail-soft isolation for third-party rule/provider failures so broken extensions cannot take down core diagnosis
@@ -137,6 +138,12 @@ Aggregate regression gates require precision >= 95%, recall >= 90%, false-positi
 The corpus includes hard negatives that deliberately resemble supported failures but come from a different subsystem. Schema Registry diagnosis, for example, requires explicit Schema Registry/Confluent context or a subject path; a generic Spring `RestClientException` with HTTP `401` or `409` is not sufficient.
 
 The generated `target/diagnostic-benchmark.json` includes a `categories` breakdown, is added to the GitHub Actions job summary and uploaded as a CI artifact. These numbers are regression metrics for the curated corpus, not a claim of production-wide statistical accuracy. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md).
+
+## Performance and load benchmark
+
+`PerformanceBenchmarkTest` exercises synthetic deterministic batch workloads at 50, 200, 500 and 750 incident blocks plus an approximately 2 MiB log. It records average latency, p50/p95/p99 latency, p50 throughput, input size, unique incidents, truncation behavior and an approximate observed heap delta.
+
+The 750-incident scenario explicitly verifies that the existing 500-block processing cap is preserved under overload. A dedicated GitHub Actions workflow publishes `target/performance-benchmark.json` to the job summary and uploads it as an artifact. Absolute latency is intentionally not treated as a hard SLA on shared CI runners; the report is designed for comparable regression tracking. See [docs/performance-benchmark.md](docs/performance-benchmark.md).
 
 ## CI and GitHub output
 
