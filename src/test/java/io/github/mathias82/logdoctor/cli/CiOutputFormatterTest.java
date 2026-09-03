@@ -41,6 +41,30 @@ class CiOutputFormatterTest {
         assertThat(AnalyzeCommand.resolveFormat(new String[]{"--file", "app.log", "--format", "github"})).isEqualTo("github");
     }
 
+    @Test
+    void parsesCiFailurePolicies() {
+        assertThat(AnalyzeCommand.resolveFailOn(new String[]{"--file", "app.log"})).isEqualTo("none");
+        assertThat(AnalyzeCommand.resolveFailOn(new String[]{"--file", "app.log", "--fail-on=diagnosis"})).isEqualTo("diagnosis");
+        assertThat(AnalyzeCommand.resolveFailOn(new String[]{"--file", "app.log", "--fail-on", "high"})).isEqualTo("high");
+        assertThat(AnalyzeCommand.resolveFailOn(new String[]{"--file", "app.log", "--fail-on", "critical"})).isEqualTo("critical");
+    }
+
+    @Test
+    void appliesSeverityAwareFailurePolicy() {
+        var noFailure = engine().analyzeStructured("INFO service started successfully");
+        var medium = engine().analyzeStructured("java.lang.NullPointerException: order was null");
+        var high = engine().analyzeStructured("org.apache.kafka.common.errors.TopicAuthorizationException: Not authorized to access topics: [orders]");
+        var critical = engine().analyzeStructured("java.lang.OutOfMemoryError: Java heap space");
+
+        assertThat(AnalyzeCommand.shouldFail(noFailure, "diagnosis")).isFalse();
+        assertThat(AnalyzeCommand.shouldFail(medium, "diagnosis")).isTrue();
+        assertThat(AnalyzeCommand.shouldFail(medium, "high")).isFalse();
+        assertThat(AnalyzeCommand.shouldFail(high, "high")).isTrue();
+        assertThat(AnalyzeCommand.shouldFail(high, "critical")).isFalse();
+        assertThat(AnalyzeCommand.shouldFail(critical, "critical")).isTrue();
+        assertThat(AnalyzeCommand.shouldFail(critical, "none")).isFalse();
+    }
+
     private static DiagnosisEngine engine() {
         return new DiagnosisEngine(new NoopLlmClient());
     }

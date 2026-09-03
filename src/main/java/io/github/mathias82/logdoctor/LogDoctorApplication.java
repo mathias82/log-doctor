@@ -16,7 +16,10 @@ public class LogDoctorApplication {
             return;
         }
 
-        AnalyzeCommand.run(args);
+        int exitCode = AnalyzeCommand.run(args);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
     }
 
     static int resolveWebPort(String[] args) {

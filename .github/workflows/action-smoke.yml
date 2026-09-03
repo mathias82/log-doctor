@@ -1,0 +1,50 @@
+name: GitHub Action smoke test
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  action-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Create representative log
+        shell: bash
+        run: |
+          mkdir -p target/action-smoke
+          cat > target/action-smoke/app.log <<'EOF'
+          org.apache.kafka.common.errors.TopicAuthorizationException: Not authorized to access topics: [orders]
+          EOF
+
+      - name: Annotation-only mode succeeds
+        id: observe
+        uses: ./
+        with:
+          log-file: target/action-smoke/app.log
+          fail-on: none
+
+      - name: Verify success exit code
+        shell: bash
+        run: test "${{ steps.observe.outputs.exit-code }}" = "0"
+
+      - name: High-severity policy fails
+        id: enforce
+        continue-on-error: true
+        uses: ./
+        with:
+          log-file: target/action-smoke/app.log
+          fail-on: high
+
+      - name: Verify policy enforcement
+        shell: bash
+        run: test "${{ steps.enforce.outcome }}" = "failure"
