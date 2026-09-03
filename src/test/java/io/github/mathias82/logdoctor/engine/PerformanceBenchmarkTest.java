@@ -29,9 +29,10 @@ class PerformanceBenchmarkTest {
         LogBatchAnalyzer analyzer = new LogBatchAnalyzer(engine);
 
         List<Scenario> scenarios = List.of(
-                scenario("small-50-incidents", 50, 8),
-                scenario("medium-200-incidents", 200, 12),
-                scenario("max-batch-500-incidents", 500, 16),
+                scenario("small-50-incidents", 50, 8, false),
+                scenario("medium-200-incidents", 200, 12, false),
+                scenario("max-batch-500-incidents", 500, 16, false),
+                scenario("over-cap-750-incidents", 750, 8, true),
                 scenarioByTargetBytes("large-log-2mb", 2 * 1024 * 1024)
         );
 
@@ -60,8 +61,9 @@ class PerformanceBenchmarkTest {
             assertThat(last).isNotNull();
             assertThat(last.detectedFailureBlocks()).isGreaterThan(0);
             assertThat(last.uniqueIncidents()).isGreaterThan(0);
+            assertThat(last.truncated()).isEqualTo(scenario.expectedTruncated());
             if (scenario.expectedTruncated()) {
-                assertThat(last.truncated()).isTrue();
+                assertThat(last.detectedFailureBlocks()).isGreaterThan(LogBatchAnalyzer.MAX_INCIDENT_BLOCKS);
             }
 
             reports.add(reportFor(scenario, durations, maxHeapDelta, last));
@@ -76,14 +78,15 @@ class PerformanceBenchmarkTest {
         report.put("notes", List.of(
                 "Latency values are CI/runtime observations, not production SLAs.",
                 "Heap delta is an approximate process-local signal and is not a leak detector.",
-                "The benchmark intentionally uses a no-op LLM client so results measure deterministic analysis and batch processing."
+                "The benchmark intentionally uses a no-op LLM client so results measure deterministic analysis and batch processing.",
+                "The over-cap scenario verifies the 500-block safety cap while still recording end-to-end latency."
         ));
 
         Path output = Path.of("target", "performance-benchmark.json");
         Files.createDirectories(output.getParent());
         JSON.writerWithDefaultPrettyPrinter().writeValue(output.toFile(), report);
 
-        assertThat(reports).hasSize(4);
+        assertThat(reports).hasSize(5);
         assertThat(output).exists();
     }
 
@@ -104,6 +107,7 @@ class PerformanceBenchmarkTest {
         report.put("inputBytes", scenario.bytes());
         report.put("inputLines", scenario.lines());
         report.put("detectedFailureBlocks", result.detectedFailureBlocks());
+        report.put("processedFailureBlockLimit", LogBatchAnalyzer.MAX_INCIDENT_BLOCKS);
         report.put("uniqueIncidents", result.uniqueIncidents());
         report.put("truncated", result.truncated());
         report.put("averageLatencyMs", averageMs);
@@ -128,7 +132,7 @@ class PerformanceBenchmarkTest {
         return Math.round(value * 100.0) / 100.0;
     }
 
-    private static Scenario scenario(String name, int incidents, int stackFrames) {
+    private static Scenario scenario(String name, int incidents, int stackFrames, boolean expectedTruncated) {
         StringBuilder log = new StringBuilder();
         for (int i = 0; i < incidents; i++) {
             log.append("2026-09-03T12:00:").append(String.format("%02d", i % 60))
@@ -143,11 +147,11 @@ class PerformanceBenchmarkTest {
             }
             log.append("2026-09-03T12:01:00Z INFO request completed\n");
         }
-        return new Scenario(name, log.toString(), false);
+        return new Scenario(name, log.toString(), expectedTruncated);
     }
 
     private static Scenario scenarioByTargetBytes(String name, int targetBytes) {
-        String base = scenario(name, 500, 24).log();
+        String base = scenario(name, 500, 24, false).log();
         StringBuilder log = new StringBuilder(base);
         while (log.length() < targetBytes) {
             log.append("2026-09-03T12:02:00Z INFO heartbeat node=orders-service status=UP detail=")
