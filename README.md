@@ -16,6 +16,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 
 - deterministic incident detection before AI
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
+- measurable diagnostic regression benchmark with precision, recall, false-positive rate and exact-rule accuracy gates
 - pluggable deterministic rule providers through Java `ServiceLoader`, with built-in precedence preserved
 - fail-soft isolation for third-party rule/provider failures so broken extensions cannot take down core diagnosis
 - Spring Boot startup failure-analysis extraction with `Description` / `Action` guidance
@@ -24,7 +25,9 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - stack-trace-aware grouping with deepest-cause frame association, module/native frame support and dashboard grouping explainability
 - structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
 - versioned HTTP API contract signal for CI/CD, monitoring and external integrations
+- CI-friendly CLI JSON and GitHub Actions annotation output modes
 - privacy-safe runtime observability for analysis volume, deterministic/unknown outcomes, local LLM usage, failures and latency
+- Prometheus scrape endpoint plus OpenTelemetry Collector bridge configuration
 - full specialized Kafka operational diagnostic matrix with Schema Registry context guards and negative cases
 - release provenance, CycloneDX SBOM attestation, SHA-256 integrity metadata and pull-request dependency review
 - structured remediation metadata returned by both single and grouped diagnosis APIs
@@ -49,7 +52,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 docker compose up -d --build
 ```
 
-Web UI: `http://localhost:8080`. Health: `curl http://localhost:8080/api/health`.
+Web UI: `http://localhost:8080`. Health: `curl http://localhost:8080/api/health`. Prometheus metrics: `curl http://localhost:8080/metrics`.
 
 ## Run Java directly
 
@@ -120,9 +123,26 @@ Match confidence is evidence strength only. It never grants execution permission
 
 ## Runtime observability
 
-The embedded web server exposes aggregate process-local operational metrics at `GET /api/metrics`. The metrics surface tracks completed analyses, deterministic and unknown outcomes, no-failure results, local LLM usage, analysis errors, and average/maximum analysis latency.
+The embedded web server exposes aggregate process-local operational metrics at `GET /api/metrics` as JSON and `GET /metrics` in Prometheus text exposition format. The metrics surface tracks completed analyses, deterministic and unknown outcomes, no-failure results, local LLM usage, analysis errors, and average/maximum analysis latency.
 
-The endpoint intentionally excludes raw logs, evidence, prompts, exception messages and LLM responses. Metrics reset on process restart and are intended as a lightweight baseline for local operations and future Prometheus/OpenTelemetry adapters. See [docs/runtime-observability.md](docs/runtime-observability.md).
+The endpoint intentionally excludes raw logs, evidence, prompts, exception messages and LLM responses. `observability/otel-collector-config.yaml` provides an OpenTelemetry Collector bridge that scrapes the Prometheus endpoint, keeping the application vendor-neutral while allowing an OTLP-compatible exporter to be configured in the collector. See [docs/runtime-observability.md](docs/runtime-observability.md).
+
+## Diagnostic benchmark
+
+`DiagnosticBenchmarkTest` evaluates the checked-in curated corpus and publishes measurable precision, recall, false-positive rate and exact-rule accuracy. The current regression gates require precision >= 95%, recall >= 90%, false-positive rate <= 5% and exact-rule accuracy >= 90%.
+
+The generated `target/diagnostic-benchmark.json` is added to the GitHub Actions job summary and uploaded as a CI artifact. These numbers are regression metrics for the curated corpus, not a claim of production-wide statistical accuracy. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md).
+
+## CI and GitHub output
+
+The CLI keeps human-readable text as the default and adds machine-friendly formats:
+
+```bash
+java -jar target/log-doctor-0.4.2.jar --file application.log --format json
+java -jar target/log-doctor-0.4.2.jar --file application.log --format github
+```
+
+`json` emits the structured diagnosis contract. `github` emits escaped GitHub Actions workflow annotations with the source file and failure line when available. Neither mode executes remediation actions. See [docs/ci-github-integration.md](docs/ci-github-integration.md).
 
 ## Kafka diagnostic quality
 
