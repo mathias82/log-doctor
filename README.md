@@ -16,7 +16,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 
 - deterministic incident detection before AI
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
-- measurable diagnostic regression benchmark with precision, recall, false-positive rate and exact-rule accuracy gates
+- 120-case labelled diagnostic regression corpus with aggregate and per-category JVM/Spring/Kafka/DB precision, recall, false-positive and exact-rule quality gates
 - hard-negative regression cases for cross-system lookalikes such as generic HTTP failures versus Schema Registry errors
 - pluggable deterministic rule providers through Java `ServiceLoader`, with built-in precedence preserved
 - fail-soft isolation for third-party rule/provider failures so broken extensions cannot take down core diagnosis
@@ -130,11 +130,13 @@ The endpoint intentionally excludes raw logs, evidence, prompts, exception messa
 
 ## Diagnostic benchmark
 
-`DiagnosticBenchmarkTest` evaluates the checked-in curated corpus and publishes measurable precision, recall, false-positive rate and exact-rule accuracy. The current regression gates require precision >= 95%, recall >= 90%, false-positive rate <= 5% and exact-rule accuracy >= 90%.
+`DiagnosticBenchmarkTest` evaluates a checked-in **120-case labelled corpus**, split evenly across JVM, Spring, Kafka and DB domains. It publishes aggregate precision, recall, false-positive rate and exact-rule accuracy plus the same metrics independently for each category.
+
+Aggregate regression gates require precision >= 95%, recall >= 90%, false-positive rate <= 5% and exact-rule accuracy >= 90%. Category-level gates require precision >= 90%, recall >= 85%, false-positive rate <= 10% and exact-rule accuracy >= 85%, with at least 25 labelled cases per category. This prevents strong performance in one subsystem from hiding a regression in another.
 
 The corpus includes hard negatives that deliberately resemble supported failures but come from a different subsystem. Schema Registry diagnosis, for example, requires explicit Schema Registry/Confluent context or a subject path; a generic Spring `RestClientException` with HTTP `401` or `409` is not sufficient.
 
-The generated `target/diagnostic-benchmark.json` is added to the GitHub Actions job summary and uploaded as a CI artifact. These numbers are regression metrics for the curated corpus, not a claim of production-wide statistical accuracy. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md).
+The generated `target/diagnostic-benchmark.json` includes a `categories` breakdown, is added to the GitHub Actions job summary and uploaded as a CI artifact. These numbers are regression metrics for the curated corpus, not a claim of production-wide statistical accuracy. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md).
 
 ## CI and GitHub output
 
