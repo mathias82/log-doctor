@@ -16,39 +16,26 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 
 - deterministic incident detection before AI
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
-- 120-case labelled diagnostic regression corpus with aggregate and per-category JVM/Spring/Kafka/DB precision, recall, false-positive and exact-rule quality gates
+- 120-case labelled diagnostic regression corpus with aggregate and per-category JVM/Spring/Kafka/DB quality gates
 - synthetic performance/load benchmark with p50/p95/p99 latency, throughput, approximate heap delta and 500-block safety-cap coverage
-- hard-negative regression cases for cross-system lookalikes such as generic HTTP failures versus Schema Registry errors
-- pluggable deterministic rule providers through Java `ServiceLoader`, with built-in precedence preserved
-- fail-soft isolation for third-party rule/provider failures so broken extensions cannot take down core diagnosis
+- pluggable deterministic rule providers through Java `ServiceLoader`, with fail-soft isolation
 - Spring Boot startup failure-analysis extraction with `Description` / `Action` guidance
-- deterministic nested exception cause-chain extraction
-- explicit `WHY MATCHED` explanations and auditable 0-100 match-strength scoring
-- stack-trace-aware grouping with deepest-cause frame association, module/native frame support and dashboard grouping explainability
-- structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
-- versioned HTTP API contract signal for CI/CD, monitoring and external integrations
-- CI-friendly CLI JSON, GitHub Actions annotations and SARIF 2.1.0 output
-- GitHub Code Scanning integration with stable `LOGDOCTOR-*` rule identifiers and source locations
+- deterministic nested exception cause-chain extraction, `WHY MATCHED` explanations and auditable match-strength scoring
+- stack-trace-aware grouping and structured grouping metadata
+- versioned HTTP API contract signal
+- CI-friendly JSON, GitHub annotations, SARIF 2.1.0 and GitHub Code Scanning integration
 - official composite GitHub Action with severity-aware failure policies and stable CI exit codes
-- privacy-safe runtime observability for analysis volume, deterministic/unknown outcomes, local LLM usage, failures and latency
+- privacy-safe request and incident observability, Prometheus latency histogram, error counters and local-LLM usage metrics
 - Prometheus scrape endpoint plus OpenTelemetry Collector bridge configuration
-- full specialized Kafka operational diagnostic matrix with Schema Registry context guards and negative cases
+- full specialized Kafka operational diagnostic matrix with Schema Registry context guards
 - release provenance, CycloneDX SBOM attestation, SHA-256 integrity metadata and pull-request dependency review
-- structured remediation metadata returned by both single and grouped diagnosis APIs
-- remediation safety state, allowed action types and incident-aware verification steps
-- typed remediation profiles centralize incident-to-guidance routing so playbooks and verification cannot drift independently
-- structured investigation-first remediation playbooks with inspect, change-candidate, validation and escalation phases
-- contextual verification guidance for Kafka, Spring Boot startup, HikariCP saturation and JVM OutOfMemory failures
-- Markdown reports include remediation safety, allowed actions and verification steps
-- dashboard renders backend-owned grouping/remediation metadata and operational playbooks without duplicating policy logic client-side
-- explicit `NO_AUTOMATIC_FIX` policy and disabled automatic execution
+- structured remediation metadata and investigation-first playbooks with automatic execution disabled
 - multi-incident parsing, fingerprinting, deduplication, timelines, correlations, root-cause candidates and spike detection
 - optional local-Ollama enrichment only after deterministic analysis
 - structured JSON and downloadable Markdown incident reports
 - file upload / drag-and-drop web dashboard
 - deterministic sensitive-data redaction before the LLM boundary
-- Docker Compose support for Ollama only or the complete Log Doctor + Ollama stack
-- real Docker/Ollama end-to-end CI coverage
+- Docker Compose support and real Docker/Ollama end-to-end CI coverage
 
 ## Fastest start: full Docker stack
 
@@ -69,110 +56,28 @@ java -jar target/log-doctor-0.4.2.jar --web
 
 Default bind: `127.0.0.1:8080`.
 
-## Web dashboard
+## API and dashboard
 
-The file-first UI accepts `.log`, `.txt`, and `text/plain` inputs up to 5 MB. Files are read by the browser and sent as JSON for analysis; they are not persisted by the server.
-
-Each grouped incident returned by the batch API includes a structured `grouping` object with `strategy`, `exceptionType`, `frames`, and `lineNumbersIgnored`. The dashboard consumes that object directly and no longer reverse-parses the opaque `fingerprint` value. The fingerprint remains available as a stable internal/backward-compatible identity.
-
-Each diagnosis carries the backend-owned `remediation` object when a failure is present. It contains `safety`, `allowedActions`, `verificationSteps`, `automaticExecutionAllowed`, and a structured `playbook`. The dashboard renders the four playbook phases directly from the backend contract as `Inspect evidence`, `Change candidates`, `Validate recovery`, and `Escalate when`. It does not infer remediation policy in JavaScript.
-
-For known deterministic incidents, remediation can be more specific than the broad category. Kafka authorization/replication/consumer/schema/producer cases, Spring Boot startup failures, HikariCP connection-pool exhaustion and JVM OutOfMemory failures receive targeted checks and playbooks while the existing fix policy remains authoritative. These specializations are selected through a typed `RemediationProfile`, so verification guidance and playbook selection share one central routing decision instead of duplicating incident-type string checks.
-
-Unknown, infrastructure, business and other protected cases remain human-review-only. Automatic execution is currently always `false`.
-
-The dashboard shows match evidence, grouping signature, cause chain, remediation guardrails and playbooks, provenance, timeline, investigation order, correlations, root-cause candidates and spikes.
-
-Stack-aware grouping associates the selected deepest visible exception/error/throwable with its own first frames, ignores source line numbers, handles module-qualified frames plus `Native Method` / `Unknown Source`, and ignores suppressed failures when selecting the grouping cause. See [docs/stack-trace-fingerprinting.md](docs/stack-trace-fingerprinting.md).
-
-## API
-
-`POST /api/analyze` returns one structured diagnosis. `POST /api/analyze/batch` returns grouped incidents and advanced batch insights. Both accept JSON with a `log` string.
-
-Every HTTP response includes `X-Log-Doctor-Api-Version: 1`, and `/api/health` also exposes `apiVersion`. Integrations can validate this contract version before processing a response without changing the existing JSON payload shapes. See [docs/api-contract.md](docs/api-contract.md).
-
-Match confidence is evidence strength only. It never grants execution permission and never overrides `NO_AUTOMATIC_FIX`.
+`POST /api/analyze` returns one structured diagnosis. `POST /api/analyze/batch` returns grouped incidents and advanced batch insights. Every HTTP response includes `X-Log-Doctor-Api-Version: 1`. The dashboard renders backend-owned grouping, match evidence, remediation guardrails and playbooks without duplicating policy logic client-side. Automatic remediation execution remains disabled.
 
 ## Runtime observability
 
-The embedded web server exposes aggregate process-local operational metrics at `GET /api/metrics` as JSON and `GET /metrics` in Prometheus text exposition format. The metrics surface tracks completed analyses, deterministic and unknown outcomes, no-failure results, local LLM usage, analysis errors, and average/maximum analysis latency.
+The embedded server exposes aggregate process-local metrics at `GET /api/metrics` as JSON and `GET /metrics` in Prometheus text format. Request volume and returned incident volume are tracked separately. Batch requests containing only unknown incidents are classified as unknown rather than deterministic diagnoses.
 
-The endpoint intentionally excludes raw logs, evidence, prompts, exception messages and LLM responses. `observability/otel-collector-config.yaml` provides an OpenTelemetry Collector bridge that scrapes the Prometheus endpoint, keeping the application vendor-neutral while allowing an OTLP-compatible exporter to be configured in the collector. See [docs/runtime-observability.md](docs/runtime-observability.md).
+Prometheus includes a `log_doctor_analysis_latency_milliseconds` histogram with fixed buckets plus sum/count, while the existing average/max gauges remain available for compatibility. The surface also includes analysis-error and rule-provider-failure counters. Metrics contain no raw logs, evidence, prompts or LLM responses. `observability/otel-collector-config.yaml` provides a vendor-neutral OpenTelemetry Collector bridge. See [docs/runtime-observability.md](docs/runtime-observability.md).
 
-## Diagnostic benchmark
+## Diagnostic and performance quality
 
-`DiagnosticBenchmarkTest` evaluates a checked-in **120-case labelled corpus**, split evenly across JVM, Spring, Kafka and DB domains. It publishes aggregate precision, recall, false-positive rate and exact-rule accuracy plus the same metrics independently for each category.
-
-Aggregate regression gates require precision >= 95%, recall >= 90%, false-positive rate <= 5% and exact-rule accuracy >= 90%. Category-level gates require precision >= 90%, recall >= 85%, false-positive rate <= 10% and exact-rule accuracy >= 85%, with at least 25 labelled cases per category. This prevents strong performance in one subsystem from hiding a regression in another.
-
-The generated `target/diagnostic-benchmark.json` includes a `categories` breakdown, is added to the GitHub Actions job summary and uploaded as a CI artifact. These numbers are regression metrics for the curated corpus, not a claim of production-wide statistical accuracy. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md).
-
-## Performance and load benchmark
-
-`PerformanceBenchmarkTest` exercises synthetic deterministic batch workloads at 50, 200, 500 and 750 incident blocks plus an approximately 2 MiB log. It records average latency, p50/p95/p99 latency, p50 throughput, input size, unique incidents, truncation behavior and an approximate observed heap delta.
-
-The 750-incident scenario explicitly verifies that the existing 500-block processing cap is preserved under overload. A dedicated GitHub Actions workflow publishes `target/performance-benchmark.json` to the job summary and uploads it as an artifact. Absolute latency is intentionally not treated as a hard SLA on shared CI runners; the report is designed for comparable regression tracking. See [docs/performance-benchmark.md](docs/performance-benchmark.md).
+`DiagnosticBenchmarkTest` evaluates a checked-in 120-case labelled JVM/Spring/Kafka/DB corpus with aggregate and per-category precision, recall, false-positive and exact-rule gates. `PerformanceBenchmarkTest` exercises synthetic workloads at 50, 200, 500 and 750 incident blocks plus an approximately 2 MiB log and reports average/p50/p95/p99 latency, throughput, truncation and approximate heap delta. These are reproducible regression signals, not production-wide accuracy or SLA claims. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md) and [docs/performance-benchmark.md](docs/performance-benchmark.md).
 
 ## CI, GitHub Actions and SARIF
 
-The CLI keeps human-readable text as the default and adds machine-friendly formats plus explicit enforcement policies:
+The CLI supports `text`, `json`, `github` and `sarif` output plus `--fail-on none|diagnosis|high|critical`. Stable exit codes distinguish success, policy-triggered findings and usage/analysis errors. The repository includes an official composite GitHub Action and SARIF Code Scanning smoke coverage. See [docs/ci-github-integration.md](docs/ci-github-integration.md) and [docs/sarif-code-scanning.md](docs/sarif-code-scanning.md).
 
-```bash
-java -jar target/log-doctor-0.4.2.jar --file application.log --format json
-java -jar target/log-doctor-0.4.2.jar --file application.log --format github --fail-on high
-java -jar target/log-doctor-0.4.2.jar --file application.log --format sarif > log-doctor.sarif
-```
+## Safety
 
-`json` emits the structured diagnosis contract. `github` emits escaped GitHub Actions workflow annotations. `sarif` emits SARIF 2.1.0 with stable `LOGDOCTOR-*` rules, severity, source path/failure line, root cause and diagnostic safety metadata. The SARIF file can be uploaded with `github/codeql-action/upload-sarif` so findings appear in GitHub Code Scanning. A healthy log produces a valid report with no results.
+Log Doctor is investigation-first. Match confidence is evidence strength, not execution authority. `NO_AUTOMATIC_FIX` remains authoritative and remediation metadata keeps `automaticExecutionAllowed=false`.
 
-`--fail-on none|diagnosis|high|critical` controls whether CI should fail after analysis. Exit code `0` means success/no policy match, `2` means the selected diagnostic policy triggered, and `3` means usage/input/analysis error.
+## Documentation
 
-The repository also exposes an official composite action:
-
-```yaml
-- name: Diagnose application log
-  uses: mathias82/log-doctor@main
-  with:
-    log-file: build/logs/application.log
-    fail-on: high
-```
-
-For production workflows, pin the action to a release tag or commit SHA. SARIF and the action remain reporting/enforcement integrations only; neither executes remediation. See [docs/ci-github-integration.md](docs/ci-github-integration.md) and [docs/sarif-code-scanning.md](docs/sarif-code-scanning.md).
-
-## Kafka diagnostic quality
-
-`KafkaOperationalFailureRuleTest` covers all specialized Kafka operational incident types, including authorization, authentication, producer state, replication, consumer state, message sizing, metadata, and Schema Registry failures. Schema Registry authorization/compatibility matches require Schema Registry context so generic `401 Unauthorized`, unrelated Spring REST-client `401`/`409` responses, or ordinary `incompatible schema` text are not misclassified. See [docs/kafka-diagnostic-quality-matrix.md](docs/kafka-diagnostic-quality-matrix.md).
-
-## Custom deterministic rules
-
-`IncidentRuleProvider` lets an application or separate JAR add deterministic rules without changing Log Doctor core. Providers are discovered through Java `ServiceLoader` and their rules run after specialized built-ins but before `CommonFailureCatalogRule`, so custom diagnostics can refine generic catalog matches without silently replacing higher-fidelity built-in rules.
-
-Extension code is isolated at the SPI boundary: provider discovery/rule-list failures are logged and skipped, and a custom rule that throws or returns `null` is treated as no match so diagnosis can continue to the next extension or built-in catalog rule. Core built-in failures remain visible rather than being swallowed.
-
-Embedded applications can also construct `IncidentDetector` with an explicit `List<IncidentRule>` instead of classpath discovery. Custom rules remain subject to the same downstream fix-policy and remediation-safety contracts; they do not enable automatic execution.
-
-See [docs/custom-rule-providers.md](docs/custom-rule-providers.md).
-
-## Rule quality matrix
-
-`DeterministicRuleQualityMatrixTest` protects specialized-rule precedence and representative benign negatives. See [docs/rule-quality-matrix.md](docs/rule-quality-matrix.md).
-
-## Supply-chain security
-
-Tag-triggered releases carry GitHub build provenance plus a CycloneDX JSON SBOM attestation. Release integrity artifacts include `SHA256SUMS` and the generated SBOM. Pull requests targeting `main` also run dependency review and fail on newly introduced high/critical vulnerabilities or denied GPL-3.0/AGPL-3.0 licenses.
-
-Consumers can verify a downloaded release JAR with `gh attestation verify <jar> --repo mathias82/log-doctor`. See [docs/supply-chain-security.md](docs/supply-chain-security.md) for the complete verification model and limitations.
-
-## Maven Central
-
-```xml
-<dependency>
-  <groupId>io.github.mathias82</groupId>
-  <artifactId>log-doctor</artifactId>
-  <version>0.4.2</version>
-</dependency>
-```
-
-## Release notes
-
-See [CHANGELOG.md](CHANGELOG.md) and [docs/release-notes-0.4.0.md](docs/release-notes-0.4.0.md).
+Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, observability, benchmarks, CI/SARIF integration, supply-chain security and release integrity.

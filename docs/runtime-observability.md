@@ -1,45 +1,41 @@
 # Runtime observability
 
-Log Doctor exposes privacy-safe in-process operational metrics from the embedded web server in two formats:
+Log Doctor exposes privacy-safe in-process operational metrics from the embedded web server:
 
 ```text
 GET /api/metrics   # JSON
 GET /metrics       # Prometheus text exposition
 ```
 
-The endpoints are intended for local operations, smoke checks, dashboards and metrics pipelines. They do not expose raw logs, evidence, prompts, exception messages, tenant identifiers or LLM responses.
+The endpoints do not expose raw logs, evidence, prompts, exception messages, tenant identifiers or LLM responses.
 
 ## Metrics
 
-- completed analyses
-- deterministic diagnoses
-- unknown diagnoses
+The runtime surface tracks request-level and incident-level signals separately:
+
+- completed analysis requests
+- incidents returned across requests
+- deterministic diagnosis outcomes
+- unknown diagnosis outcomes
 - no-failure results
 - local LLM usage
 - unexpected analysis errors
-- average completed analysis latency
-- maximum completed analysis latency
+- fail-soft custom rule/provider failures
+- average and maximum completed-analysis latency
+- Prometheus latency histogram buckets, sum and count
 
-Prometheus names use the `log_doctor_` prefix, for example `log_doctor_analyses_total` and `log_doctor_analysis_latency_average_ms`.
+Prometheus names use the `log_doctor_` prefix. Important series include `log_doctor_analyses_total`, `log_doctor_incidents_total`, `log_doctor_rule_provider_failures_total`, and the `log_doctor_analysis_latency_milliseconds` histogram family.
 
-Counters are process-local and reset when the Log Doctor process restarts. They are operational telemetry, not durable audit records.
+The histogram uses fixed millisecond buckets at 10, 25, 50, 100, 250, 500, 1000, 2500, 5000 and 10000 ms plus `+Inf`. This allows Prometheus-side percentile estimation without turning shared-runner or local observations into application SLAs.
 
-## Prometheus
+Batch requests are classified as `UNKNOWN` only when their returned incidents are unknown-only. A batch containing at least one known diagnosis is classified as diagnosed. Incident count remains separate from request count so a large grouped batch does not look like a single diagnostic event.
 
-Point a Prometheus scrape job at `http://<log-doctor-host>:8080/metrics`. The endpoint uses the Prometheus text exposition format and keeps the existing Log Doctor API-version response header.
+Counters are process-local and reset when the process restarts. They are operational telemetry, not durable audit records.
 
-## OpenTelemetry Collector
+## Prometheus and OpenTelemetry
 
-`observability/otel-collector-config.yaml` provides a collector bridge that uses the OpenTelemetry Collector Prometheus receiver to scrape Log Doctor's `/metrics` endpoint. The included configuration exports to the collector `debug` exporter so it is safe to run as a local verification pipeline.
-
-For production, replace or extend the exporter with the OTLP-compatible backend used by your platform. This keeps Log Doctor independent from a specific metrics vendor while still fitting an OpenTelemetry pipeline.
-
-When the collector runs in Docker while Log Doctor runs on the host, the sample target is `host.docker.internal:8080`. Change that target to the Log Doctor service DNS name when both run on the same container network.
+Point Prometheus at `http://<log-doctor-host>:8080/metrics`. `observability/otel-collector-config.yaml` provides a vendor-neutral OpenTelemetry Collector bridge using the Prometheus receiver and a safe local debug exporter. Replace or extend the exporter with the OTLP-compatible backend used by your platform.
 
 ## Privacy boundary
 
-Metrics deliberately contain only aggregate counters and timings. Raw log content and diagnostic evidence stay outside the metrics surface. This keeps observability aligned with Log Doctor's local-first design.
-
-## Scope
-
-The current implementation is intentionally lightweight: Log Doctor owns the operational metric contract and Prometheus scrape surface, while OpenTelemetry Collector handles protocol/backend adaptation. Diagnosis payloads and remediation safety policy are unchanged.
+Metrics contain aggregate counters and timings only. Raw log content and diagnostic evidence stay outside the metrics surface. Diagnosis payloads, `NO_AUTOMATIC_FIX`, and remediation execution policy are unchanged.
