@@ -1,0 +1,38 @@
+name: SARIF Code Scanning smoke test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  sarif:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build
+        run: mvn --batch-mode --no-transfer-progress -DskipTests package
+      - name: Create representative log
+        run: |
+          mkdir -p logs
+          printf '%s\n' 'java.lang.OutOfMemoryError: Java heap space' > logs/app.log
+      - name: Generate SARIF
+        run: |
+          jar="$(find target -maxdepth 1 -type f -name 'log-doctor-*.jar' -print -quit)"
+          java -jar "$jar" --file logs/app.log --format sarif > log-doctor.sarif
+          python -m json.tool log-doctor.sarif >/dev/null
+          grep -q '"version" : "2.1.0"' log-doctor.sarif
+          grep -q 'LOGDOCTOR-' log-doctor.sarif
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: log-doctor.sarif
+          category: log-doctor

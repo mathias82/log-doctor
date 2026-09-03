@@ -27,7 +27,8 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - stack-trace-aware grouping with deepest-cause frame association, module/native frame support and dashboard grouping explainability
 - structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
 - versioned HTTP API contract signal for CI/CD, monitoring and external integrations
-- CI-friendly CLI JSON and GitHub Actions annotation output modes
+- CI-friendly CLI JSON, GitHub Actions annotations and SARIF 2.1.0 output
+- GitHub Code Scanning integration with stable `LOGDOCTOR-*` rule identifiers and source locations
 - official composite GitHub Action with severity-aware failure policies and stable CI exit codes
 - privacy-safe runtime observability for analysis volume, deterministic/unknown outcomes, local LLM usage, failures and latency
 - Prometheus scrape endpoint plus OpenTelemetry Collector bridge configuration
@@ -90,38 +91,6 @@ Stack-aware grouping associates the selected deepest visible exception/error/thr
 
 Every HTTP response includes `X-Log-Doctor-Api-Version: 1`, and `/api/health` also exposes `apiVersion`. Integrations can validate this contract version before processing a response without changing the existing JSON payload shapes. See [docs/api-contract.md](docs/api-contract.md).
 
-Example grouping fragment on a grouped incident:
-
-```json
-{
-  "grouping": {
-    "strategy": "STACK_TRACE",
-    "exceptionType": "java.lang.nullpointerexception",
-    "frames": ["com.acme.orderservice.load(orderservice.java)"],
-    "lineNumbersIgnored": true
-  }
-}
-```
-
-Example remediation fragment present on a single diagnosis or grouped incident:
-
-```json
-{
-  "remediation": {
-    "safety": "REVIEW_BEFORE_APPLY",
-    "allowedActions": ["SPRING_CONFIG"],
-    "verificationSteps": ["Validate the effective runtime configuration"],
-    "automaticExecutionAllowed": false,
-    "playbook": {
-      "inspect": ["FailureAnalysis Description and Action"],
-      "changeCandidates": ["Correct the identified configuration/dependency mismatch"],
-      "validate": ["Start with the same profile and environment"],
-      "escalationSignals": ["Configuration source or secret ownership is unclear"]
-    }
-  }
-}
-```
-
 Match confidence is evidence strength only. It never grants execution permission and never overrides `NO_AUTOMATIC_FIX`.
 
 ## Runtime observability
@@ -136,8 +105,6 @@ The endpoint intentionally excludes raw logs, evidence, prompts, exception messa
 
 Aggregate regression gates require precision >= 95%, recall >= 90%, false-positive rate <= 5% and exact-rule accuracy >= 90%. Category-level gates require precision >= 90%, recall >= 85%, false-positive rate <= 10% and exact-rule accuracy >= 85%, with at least 25 labelled cases per category. This prevents strong performance in one subsystem from hiding a regression in another.
 
-The corpus includes hard negatives that deliberately resemble supported failures but come from a different subsystem. Schema Registry diagnosis, for example, requires explicit Schema Registry/Confluent context or a subject path; a generic Spring `RestClientException` with HTTP `401` or `409` is not sufficient.
-
 The generated `target/diagnostic-benchmark.json` includes a `categories` breakdown, is added to the GitHub Actions job summary and uploaded as a CI artifact. These numbers are regression metrics for the curated corpus, not a claim of production-wide statistical accuracy. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md).
 
 ## Performance and load benchmark
@@ -146,16 +113,19 @@ The generated `target/diagnostic-benchmark.json` includes a `categories` breakdo
 
 The 750-incident scenario explicitly verifies that the existing 500-block processing cap is preserved under overload. A dedicated GitHub Actions workflow publishes `target/performance-benchmark.json` to the job summary and uploads it as an artifact. Absolute latency is intentionally not treated as a hard SLA on shared CI runners; the report is designed for comparable regression tracking. See [docs/performance-benchmark.md](docs/performance-benchmark.md).
 
-## CI and GitHub output
+## CI, GitHub Actions and SARIF
 
 The CLI keeps human-readable text as the default and adds machine-friendly formats plus explicit enforcement policies:
 
 ```bash
 java -jar target/log-doctor-0.4.2.jar --file application.log --format json
 java -jar target/log-doctor-0.4.2.jar --file application.log --format github --fail-on high
+java -jar target/log-doctor-0.4.2.jar --file application.log --format sarif > log-doctor.sarif
 ```
 
-`json` emits the structured diagnosis contract. `github` emits escaped GitHub Actions workflow annotations with the source file and failure line when available. `--fail-on none|diagnosis|high|critical` controls whether CI should fail after analysis. Exit code `0` means success/no policy match, `2` means the selected diagnostic policy triggered, and `3` means usage/input/analysis error.
+`json` emits the structured diagnosis contract. `github` emits escaped GitHub Actions workflow annotations. `sarif` emits SARIF 2.1.0 with stable `LOGDOCTOR-*` rules, severity, source path/failure line, root cause and diagnostic safety metadata. The SARIF file can be uploaded with `github/codeql-action/upload-sarif` so findings appear in GitHub Code Scanning. A healthy log produces a valid report with no results.
+
+`--fail-on none|diagnosis|high|critical` controls whether CI should fail after analysis. Exit code `0` means success/no policy match, `2` means the selected diagnostic policy triggered, and `3` means usage/input/analysis error.
 
 The repository also exposes an official composite action:
 
@@ -167,7 +137,7 @@ The repository also exposes an official composite action:
     fail-on: high
 ```
 
-For production workflows, pin the action to a release tag or commit SHA. The action emits native annotations and preserves the same `NO_AUTOMATIC_FIX` safety boundary. See [docs/ci-github-integration.md](docs/ci-github-integration.md).
+For production workflows, pin the action to a release tag or commit SHA. SARIF and the action remain reporting/enforcement integrations only; neither executes remediation. See [docs/ci-github-integration.md](docs/ci-github-integration.md) and [docs/sarif-code-scanning.md](docs/sarif-code-scanning.md).
 
 ## Kafka diagnostic quality
 
