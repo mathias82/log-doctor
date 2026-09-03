@@ -37,7 +37,13 @@ runs:
       shell: bash
       run: |
         set +e
-        java -jar "${{ github.action_path }}/target/log-doctor-0.4.2.jar" \
+        jar="$(find "${{ github.action_path }}/target" -maxdepth 1 -type f -name 'log-doctor-*.jar' -print -quit)"
+        if [[ -z "$jar" ]]; then
+          echo "Log Doctor executable JAR was not produced" >&2
+          echo "exit-code=3" >> "$GITHUB_OUTPUT"
+          exit 3
+        fi
+        java -jar "$jar" \
           --file "${{ inputs.log-file }}" \
           --format github \
           --fail-on "${{ inputs.fail-on }}"
