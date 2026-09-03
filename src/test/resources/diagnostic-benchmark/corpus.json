@@ -31,8 +31,5 @@
   {"name":"spring-restclient-409","positive":false,"expectedRule":null,"log":"org.springframework.web.client.RestClientException: status 409 Conflict while updating customer"},
   {"name":"generic-http-401","positive":false,"expectedRule":null,"log":"WARN REST client returned 401 Unauthorized from inventory API"},
   {"name":"generic-http-403","positive":false,"expectedRule":null,"log":"WARN downstream HTTP request returned 403 Forbidden from billing API"},
-  {"name":"generic-schema-mismatch","positive":false,"expectedRule":null,"log":"Application validation failed: incompatible schema between two internal JSON documents"},
-  {"name":"socket-word-in-business-message","positive":false,"expectedRule":null,"log":"INFO socketExceptionHandlingEnabled=true for test environment"},
-  {"name":"sql-word-in-doc-message","positive":false,"expectedRule":null,"log":"INFO SQLException examples documented successfully"},
-  {"name":"restclientexception-doc-message","positive":false,"expectedRule":null,"log":"INFO RestClientException handling policy loaded"}
+  {"name":"generic-schema-mismatch","positive":false,"expectedRule":null,"log":"Application validation failed: incompatible schema between two internal JSON documents"}
 ]
