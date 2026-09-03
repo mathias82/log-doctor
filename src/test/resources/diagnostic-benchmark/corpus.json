@@ -1,0 +1,27 @@
+[
+  {"name":"jvm-heap-oom","positive":true,"expectedRule":"OutOfMemoryRule","log":"java.lang.OutOfMemoryError: Java heap space"},
+  {"name":"jvm-stack-overflow","positive":true,"expectedRule":"CommonFailureCatalogRule","log":"java.lang.StackOverflowError\n\tat com.acme.Tree.walk(Tree.java:41)"},
+  {"name":"null-pointer","positive":true,"expectedRule":"NullPointerExceptionRule","log":"java.lang.NullPointerException: order was null"},
+  {"name":"hibernate-lazy-init","positive":true,"expectedRule":"HibernateLazyInitRule","log":"org.hibernate.LazyInitializationException: could not initialize proxy - no Session"},
+  {"name":"hikari-timeout","positive":true,"expectedRule":"HikariTimeoutRule","log":"HikariPool-1 - Connection is not available, request timed out after 30000ms"},
+  {"name":"spring-bind-failure","positive":true,"expectedRule":"SpringConfigBindRule","log":"Failed to bind properties under 'server.port' to java.lang.Integer"},
+  {"name":"spring-missing-bean","positive":true,"expectedRule":"MissingSpringBeanRule","log":"Parameter 0 of constructor in com.acme.OrderService required a bean of type 'com.acme.PaymentClient' that could not be found."},
+  {"name":"spring-profile-bean-resolution","positive":true,"expectedRule":"SpringProfileMismatchRule","log":"org.springframework.beans.factory.NoSuchBeanDefinitionException: No qualifying bean of type 'com.acme.PaymentClient' available"},
+  {"name":"spring-boot-startup-analysis","positive":true,"expectedRule":"SpringBootStartupFailureRule","log":"APPLICATION FAILED TO START\n\nDescription:\nApplication context could not start.\n\nAction:\nCheck configuration."},
+  {"name":"jpa-optimistic-lock","positive":true,"expectedRule":"PersistenceConcurrencyRule","log":"jakarta.persistence.OptimisticLockException: Row was updated or deleted by another transaction"},
+  {"name":"kafka-topic-authorization","positive":true,"expectedRule":"KafkaOperationalFailureRule","log":"org.apache.kafka.common.errors.TopicAuthorizationException: Not authorized to access topics: [orders]"},
+  {"name":"kafka-rebalance","positive":true,"expectedRule":"KafkaOperationalFailureRule","log":"org.apache.kafka.common.errors.RebalanceInProgressException: The group is rebalancing, so a rejoin is needed"},
+  {"name":"kafka-commit-after-rebalance","positive":true,"expectedRule":"CommonFailureCatalogRule","log":"org.apache.kafka.clients.consumer.CommitFailedException: Commit cannot be completed since the group has already rebalanced"},
+  {"name":"kafka-unknown-topic","positive":true,"expectedRule":"KafkaOperationalFailureRule","log":"org.apache.kafka.common.errors.UnknownTopicOrPartitionException: This server does not host this topic-partition"},
+
+  {"name":"healthy-service","positive":false,"expectedRule":null,"log":"INFO service started successfully on port 8080"},
+  {"name":"healthy-kafka-consumer","positive":false,"expectedRule":null,"log":"INFO Kafka consumer started for topic orders"},
+  {"name":"normal-http-retry","positive":false,"expectedRule":null,"log":"DEBUG retrying HTTP request after normal backoff"},
+  {"name":"normal-profile","positive":false,"expectedRule":null,"log":"INFO application profile is production"},
+  {"name":"cache-miss","positive":false,"expectedRule":null,"log":"WARN cache miss for key customer-42"},
+  {"name":"schema-registry-health","positive":false,"expectedRule":null,"log":"INFO Schema Registry health check returned 200 OK"},
+  {"name":"kafka-assignment","positive":false,"expectedRule":null,"log":"INFO partitions assigned: orders-0, orders-1"},
+  {"name":"database-pool-start","positive":false,"expectedRule":null,"log":"INFO HikariPool-1 - Start completed."},
+  {"name":"spring-context-start","positive":false,"expectedRule":null,"log":"INFO Started OrderApplication in 2.814 seconds"},
+  {"name":"ordinary-validation","positive":false,"expectedRule":null,"log":"INFO validation completed with 0 violations"}
+]

@@ -52,6 +52,7 @@ public final class LogDoctorWebServer {
             server.createContext("/api/analyze/batch", exchange -> handleBatchAnalyze(exchange, engine, metrics));
             server.createContext("/api/health", LogDoctorWebServer::handleHealth);
             server.createContext("/api/metrics", exchange -> handleMetrics(exchange, metrics));
+            server.createContext("/metrics", exchange -> handlePrometheusMetrics(exchange, metrics));
             server.createContext("/", LogDoctorWebServer::handleStatic);
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.start();
@@ -71,6 +72,11 @@ public final class LogDoctorWebServer {
     private static void handleMetrics(HttpExchange exchange, RuntimeMetrics metrics) throws IOException {
         if (!requireMethod(exchange, "GET")) return;
         writeJson(exchange, 200, metrics.asMap());
+    }
+
+    private static void handlePrometheusMetrics(HttpExchange exchange, RuntimeMetrics metrics) throws IOException {
+        if (!requireMethod(exchange, "GET")) return;
+        writeText(exchange, 200, metrics.prometheusText(), "text/plain; version=0.0.4; charset=utf-8");
     }
 
     private static void handleAnalyze(HttpExchange exchange, DiagnosisEngine engine, RuntimeMetrics metrics) throws IOException {
