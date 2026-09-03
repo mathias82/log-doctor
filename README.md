@@ -28,6 +28,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - structured grouping metadata in grouped API responses so clients do not parse opaque fingerprint delimiters
 - versioned HTTP API contract signal for CI/CD, monitoring and external integrations
 - CI-friendly CLI JSON and GitHub Actions annotation output modes
+- official composite GitHub Action with severity-aware failure policies and stable CI exit codes
 - privacy-safe runtime observability for analysis volume, deterministic/unknown outcomes, local LLM usage, failures and latency
 - Prometheus scrape endpoint plus OpenTelemetry Collector bridge configuration
 - full specialized Kafka operational diagnostic matrix with Schema Registry context guards and negative cases
@@ -147,14 +148,26 @@ The 750-incident scenario explicitly verifies that the existing 500-block proces
 
 ## CI and GitHub output
 
-The CLI keeps human-readable text as the default and adds machine-friendly formats:
+The CLI keeps human-readable text as the default and adds machine-friendly formats plus explicit enforcement policies:
 
 ```bash
 java -jar target/log-doctor-0.4.2.jar --file application.log --format json
-java -jar target/log-doctor-0.4.2.jar --file application.log --format github
+java -jar target/log-doctor-0.4.2.jar --file application.log --format github --fail-on high
 ```
 
-`json` emits the structured diagnosis contract. `github` emits escaped GitHub Actions workflow annotations with the source file and failure line when available. Neither mode executes remediation actions. See [docs/ci-github-integration.md](docs/ci-github-integration.md).
+`json` emits the structured diagnosis contract. `github` emits escaped GitHub Actions workflow annotations with the source file and failure line when available. `--fail-on none|diagnosis|high|critical` controls whether CI should fail after analysis. Exit code `0` means success/no policy match, `2` means the selected diagnostic policy triggered, and `3` means usage/input/analysis error.
+
+The repository also exposes an official composite action:
+
+```yaml
+- name: Diagnose application log
+  uses: mathias82/log-doctor@main
+  with:
+    log-file: build/logs/application.log
+    fail-on: high
+```
+
+For production workflows, pin the action to a release tag or commit SHA. The action emits native annotations and preserves the same `NO_AUTOMATIC_FIX` safety boundary. See [docs/ci-github-integration.md](docs/ci-github-integration.md).
 
 ## Kafka diagnostic quality
 
