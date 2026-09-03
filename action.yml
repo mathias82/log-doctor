@@ -24,8 +24,6 @@ runs:
       with:
         distribution: temurin
         java-version: '21'
-        cache: maven
-        cache-dependency-path: ${{ github.action_path }}/pom.xml
 
     - name: Build Log Doctor
       shell: bash
