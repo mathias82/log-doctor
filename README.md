@@ -30,6 +30,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - full specialized Kafka operational diagnostic matrix with Schema Registry context guards
 - release provenance, CycloneDX SBOM attestation, SHA-256 integrity metadata and pull-request dependency review
 - structured remediation metadata and investigation-first playbooks with automatic execution disabled
+- Markdown remediation rendering for Inspect evidence, Change candidates, Validate recovery and Escalate when phases
 - multi-incident parsing, fingerprinting, deduplication, timelines, correlations, root-cause candidates and spike detection
 - optional local-Ollama enrichment only after deterministic analysis
 - structured JSON and downloadable Markdown incident reports
@@ -73,6 +74,10 @@ Prometheus includes a `log_doctor_analysis_latency_milliseconds` histogram with 
 ## CI, GitHub Actions and SARIF
 
 The CLI supports `text`, `json`, `github` and `sarif` output plus `--fail-on none|diagnosis|high|critical`. Stable exit codes distinguish success, policy-triggered findings and usage/analysis errors. The repository includes an official composite GitHub Action and SARIF Code Scanning smoke coverage. See [docs/ci-github-integration.md](docs/ci-github-integration.md) and [docs/sarif-code-scanning.md](docs/sarif-code-scanning.md).
+
+## Remediation reporting
+
+Remediation guidance is backend-owned and investigation-first. Markdown rendering preserves the same safety metadata and presents playbooks in four explicit phases: **Inspect evidence**, **Change candidates**, **Validate recovery**, and **Escalate when**. These steps are guidance only; they never authorize or execute a change.
 
 ## Safety
 
