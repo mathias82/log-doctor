@@ -29,7 +29,7 @@ class CiOutputFormatterTest {
         String annotation = CiOutputFormatter.github(result, Path.of("logs", "app.log"));
 
         assertThat(annotation)
-                .startsWith("::error file=logs/app.log")
+                .startsWith("::warning file=logs/app.log")
                 .contains("title=Log Doctor")
                 .doesNotContain("\n");
     }
