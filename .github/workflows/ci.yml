@@ -36,6 +36,25 @@ jobs:
       - name: Verify browser utilities
         run: node --test src/test/js/*.test.cjs
 
+      - name: Add diagnostic benchmark to job summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f target/diagnostic-benchmark.json ]]; then
+            echo "## Diagnostic benchmark" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat target/diagnostic-benchmark.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload diagnostic benchmark
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-benchmark
+          path: target/diagnostic-benchmark.json
+          if-no-files-found: ignore
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
