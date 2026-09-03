@@ -99,7 +99,9 @@ public final class KafkaOperationalFailureRule implements IncidentRule {
                 || lower.contains("schema-registry")
                 || lower.contains("schemaregistry")
                 || lower.contains("io.confluent.kafka.schemaregistry")
-                || lower.contains("restclientexception");
+                || lower.contains("io.confluent.kafka.serializers")
+                || lower.contains("/subjects/")
+                || lower.contains("subject ") && lower.contains("compatibility");
     }
 
     private static String evidenceMarker(Spec spec, String lower) {

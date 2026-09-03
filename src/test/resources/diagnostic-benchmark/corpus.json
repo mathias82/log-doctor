@@ -13,6 +13,9 @@
   {"name":"kafka-rebalance","positive":true,"expectedRule":"KafkaOperationalFailureRule","log":"org.apache.kafka.common.errors.RebalanceInProgressException: The group is rebalancing, so a rejoin is needed"},
   {"name":"kafka-commit-after-rebalance","positive":true,"expectedRule":"CommonFailureCatalogRule","log":"org.apache.kafka.clients.consumer.CommitFailedException: Commit cannot be completed since the group has already rebalanced"},
   {"name":"kafka-unknown-topic","positive":true,"expectedRule":"KafkaOperationalFailureRule","log":"org.apache.kafka.common.errors.UnknownTopicOrPartitionException: This server does not host this topic-partition"},
+  {"name":"schema-registry-401-confluent","positive":true,"expectedRule":"KafkaOperationalFailureRule","log":"io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException: Unauthorized; error code: 401"},
+  {"name":"schema-registry-401-subject-path","positive":true,"expectedRule":"KafkaOperationalFailureRule","log":"RestClientException: 401 Unauthorized calling /subjects/orders-value/versions/latest"},
+  {"name":"schema-registry-409","positive":true,"expectedRule":"KafkaOperationalFailureRule","log":"Schema Registry RestClientException: schema is incompatible with an earlier schema; error code: 409"},
 
   {"name":"healthy-service","positive":false,"expectedRule":null,"log":"INFO service started successfully on port 8080"},
   {"name":"healthy-kafka-consumer","positive":false,"expectedRule":null,"log":"INFO Kafka consumer started for topic orders"},
@@ -23,5 +26,10 @@
   {"name":"kafka-assignment","positive":false,"expectedRule":null,"log":"INFO partitions assigned: orders-0, orders-1"},
   {"name":"database-pool-start","positive":false,"expectedRule":null,"log":"INFO HikariPool-1 - Start completed."},
   {"name":"spring-context-start","positive":false,"expectedRule":null,"log":"INFO Started OrderApplication in 2.814 seconds"},
-  {"name":"ordinary-validation","positive":false,"expectedRule":null,"log":"INFO validation completed with 0 violations"}
+  {"name":"ordinary-validation","positive":false,"expectedRule":null,"log":"INFO validation completed with 0 violations"},
+  {"name":"spring-restclient-401","positive":false,"expectedRule":null,"log":"org.springframework.web.client.RestClientException: 401 Unauthorized from payments API"},
+  {"name":"spring-restclient-409","positive":false,"expectedRule":null,"log":"org.springframework.web.client.RestClientException: status 409 Conflict while updating customer"},
+  {"name":"generic-http-401","positive":false,"expectedRule":null,"log":"WARN REST client returned 401 Unauthorized from inventory API"},
+  {"name":"generic-http-403","positive":false,"expectedRule":null,"log":"WARN downstream HTTP request returned 403 Forbidden from billing API"},
+  {"name":"generic-schema-mismatch","positive":false,"expectedRule":null,"log":"Application validation failed: incompatible schema between two internal JSON documents"}
 ]

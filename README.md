@@ -17,6 +17,7 @@ Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detect
 - deterministic incident detection before AI
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
 - measurable diagnostic regression benchmark with precision, recall, false-positive rate and exact-rule accuracy gates
+- hard-negative regression cases for cross-system lookalikes such as generic HTTP failures versus Schema Registry errors
 - pluggable deterministic rule providers through Java `ServiceLoader`, with built-in precedence preserved
 - fail-soft isolation for third-party rule/provider failures so broken extensions cannot take down core diagnosis
 - Spring Boot startup failure-analysis extraction with `Description` / `Action` guidance
@@ -131,6 +132,8 @@ The endpoint intentionally excludes raw logs, evidence, prompts, exception messa
 
 `DiagnosticBenchmarkTest` evaluates the checked-in curated corpus and publishes measurable precision, recall, false-positive rate and exact-rule accuracy. The current regression gates require precision >= 95%, recall >= 90%, false-positive rate <= 5% and exact-rule accuracy >= 90%.
 
+The corpus includes hard negatives that deliberately resemble supported failures but come from a different subsystem. Schema Registry diagnosis, for example, requires explicit Schema Registry/Confluent context or a subject path; a generic Spring `RestClientException` with HTTP `401` or `409` is not sufficient.
+
 The generated `target/diagnostic-benchmark.json` is added to the GitHub Actions job summary and uploaded as a CI artifact. These numbers are regression metrics for the curated corpus, not a claim of production-wide statistical accuracy. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md).
 
 ## CI and GitHub output
@@ -146,7 +149,7 @@ java -jar target/log-doctor-0.4.2.jar --file application.log --format github
 
 ## Kafka diagnostic quality
 
-`KafkaOperationalFailureRuleTest` covers all specialized Kafka operational incident types, including authorization, authentication, producer state, replication, consumer state, message sizing, metadata, and Schema Registry failures. Schema Registry authorization/compatibility matches require Schema Registry context so generic `401 Unauthorized` or ordinary `incompatible schema` text is not misclassified. See [docs/kafka-diagnostic-quality-matrix.md](docs/kafka-diagnostic-quality-matrix.md).
+`KafkaOperationalFailureRuleTest` covers all specialized Kafka operational incident types, including authorization, authentication, producer state, replication, consumer state, message sizing, metadata, and Schema Registry failures. Schema Registry authorization/compatibility matches require Schema Registry context so generic `401 Unauthorized`, unrelated Spring REST-client `401`/`409` responses, or ordinary `incompatible schema` text are not misclassified. See [docs/kafka-diagnostic-quality-matrix.md](docs/kafka-diagnostic-quality-matrix.md).
 
 ## Custom deterministic rules
 

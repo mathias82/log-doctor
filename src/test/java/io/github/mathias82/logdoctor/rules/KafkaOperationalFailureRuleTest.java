@@ -96,8 +96,24 @@ class KafkaOperationalFailureRuleTest {
     }
 
     @Test
+    void doesNotTreatSpringRestClientException401AsSchemaRegistryFailure() {
+        assertThat(rule.match(context("org.springframework.web.client.RestClientException: 401 Unauthorized from payments API"))).isEmpty();
+    }
+
+    @Test
+    void doesNotTreatUnrelatedRestClientException409AsSchemaCompatibilityFailure() {
+        assertThat(rule.match(context("org.springframework.web.client.RestClientException: status 409 Conflict while updating customer"))).isEmpty();
+    }
+
+    @Test
     void doesNotTreatGenericIncompatibleSchemaTextAsKafkaFailure() {
         assertThat(rule.match(context("Application validation failed: incompatible schema between two internal JSON documents"))).isEmpty();
+    }
+
+    @Test
+    void schemaRegistryPathStillProvidesEnoughContextFor401() {
+        var incident = match("RestClientException: 401 Unauthorized calling /subjects/orders-value/versions/latest");
+        assertThat(incident.type()).isEqualTo("KAFKA_SCHEMA_REGISTRY_UNAUTHORIZED");
     }
 
     @Test
