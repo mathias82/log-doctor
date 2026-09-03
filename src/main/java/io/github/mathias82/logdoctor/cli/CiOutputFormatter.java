@@ -83,8 +83,9 @@ final class CiOutputFormatter {
         finding.put("locations", List.of(Map.of("physicalLocation", physicalLocation)));
         finding.put("properties", Map.of(
                 "status", safe(result.status()),
-                "source", safe(result.source()),
-                "fixPolicy", safe(result.fixPolicy()),
+                "analysisSource", result.llmUsed() ? "LOCAL_LLM_ASSISTED" : "DETERMINISTIC_OR_FALLBACK",
+                "fixType", safe(result.fixType()),
+                "humanReviewRequired", result.humanReviewRequired(),
                 "matchScore", result.matchScore()));
         return finding;
     }
