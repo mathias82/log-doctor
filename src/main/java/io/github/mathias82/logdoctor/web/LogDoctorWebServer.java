@@ -10,6 +10,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.github.mathias82.logdoctor.engine.DiagnosisEngine;
 import io.github.mathias82.logdoctor.engine.GroupingMetadata;
 import io.github.mathias82.logdoctor.engine.LogBatchAnalyzer;
+import io.github.mathias82.logdoctor.engine.LogRedactor;
 import io.github.mathias82.logdoctor.observability.RuntimeMetrics;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ public final class LogDoctorWebServer {
     private static final int MAX_JSON_BYTES_PER_LOG_BYTE = 6;
     private static final int MAX_REQUEST_BYTES = MAX_LOG_BYTES * MAX_JSON_BYTES_PER_LOG_BYTE + JSON_OVERHEAD_BYTES;
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final LogRedactor REDACTOR = new LogRedactor();
     private LogDoctorWebServer() {}
 
     public static HttpServer start(int port) { return start("127.0.0.1", port, new DiagnosisEngine()); }
@@ -69,6 +71,18 @@ public final class LogDoctorWebServer {
         return root;
     }
 
+    private static ObjectNode withRedactionReport(Object result, String rawLog) {
+        ObjectNode root = JSON.valueToTree(result);
+        LogRedactor.RedactionReport report = REDACTOR.redactWithReport(rawLog).report();
+        root.set("redactionReport", JSON.valueToTree(Map.of(
+                "totalRedactions", report.totalRedactions(),
+                "sensitiveDataDetected", report.sensitiveDataDetected(),
+                "categories", report.categories(),
+                "appliedBeforeLlm", true,
+                "valuesExposed", false)));
+        return root;
+    }
+
     private static void handleLogRequest(HttpExchange exchange, LogAnalysis analysis, RuntimeMetrics metrics) throws IOException {
         if (!requireMethod(exchange, "POST")) return;
         if (!isJsonRequest(exchange)) { writeJson(exchange, 415, Map.of("error", "Content-Type must be application/json")); return; }
@@ -80,9 +94,10 @@ public final class LogDoctorWebServer {
             AnalyzeRequest request = JSON.readValue(requestBytes, AnalyzeRequest.class);
             if (request.log() == null || request.log().isBlank()) { writeJson(exchange, 400, Map.of("error", "Log content is required")); return; }
             if (request.log().getBytes(StandardCharsets.UTF_8).length > MAX_LOG_BYTES) { writeJson(exchange, 413, Map.of("error", "Log content exceeds the 5 MB limit")); return; }
-            long started = System.nanoTime(); Object result = analysis.analyze(request.log());
+            long started = System.nanoTime();
+            Object result = analysis.analyze(request.log());
             metrics.record(statusOf(result), llmUsedBy(result), System.nanoTime() - started, incidentCountOf(result));
-            writeJson(exchange, 200, result);
+            writeJson(exchange, 200, withRedactionReport(result, request.log()));
         } catch (JsonProcessingException e) { writeJson(exchange, 400, Map.of("error", "Invalid JSON request")); }
         catch (RuntimeException e) { metrics.recordError(); writeJson(exchange, 500, Map.of("error", "Analysis failed")); }
     }
