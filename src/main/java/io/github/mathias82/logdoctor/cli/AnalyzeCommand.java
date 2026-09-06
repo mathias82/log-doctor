@@ -16,7 +16,7 @@ public final class AnalyzeCommand {
 
     public static int run(String[] args) {
         if (args.length < 2 || !args[0].equals("--file")) {
-            System.out.println("Usage: log-doctor --file <logfile> [--format text|json|github|sarif] [--fail-on none|diagnosis|high|critical]");
+            System.out.println("Usage: log-doctor --file <logfile> [--format text|json|github|sarif|agent] [--fail-on none|diagnosis|high|critical]");
             return EXIT_USAGE_OR_ANALYSIS_ERROR;
         }
 
@@ -92,7 +92,7 @@ public final class AnalyzeCommand {
     private static String validFormat(String raw) {
         String format = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
         return switch (format) {
-            case "text", "json", "github", "sarif" -> format;
+            case "text", "json", "github", "sarif", "agent" -> format;
             default -> throw new IllegalArgumentException("Unsupported format: " + raw);
         };
     }
@@ -110,6 +110,7 @@ public final class AnalyzeCommand {
             case "json" -> CiOutputFormatter.json(result);
             case "github" -> CiOutputFormatter.github(result, source);
             case "sarif" -> CiOutputFormatter.sarif(result, source);
+            case "agent" -> AgentOutputFormatter.agent(result, source);
             default -> result.diagnosis();
         };
     }
