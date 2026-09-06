@@ -61,11 +61,46 @@ class CiOutputFormatterTest {
     }
 
     @Test
+    void emitsProviderNeutralAgentContract() throws Exception {
+        var result = engine().analyzeStructured("java.lang.NullPointerException: order was null");
+
+        JsonNode agent = JSON.readTree(AgentOutputFormatter.agent(result, Path.of("logs", "app.log")));
+
+        assertThat(agent.path("contractVersion").asText()).isEqualTo("1");
+        assertThat(agent.path("producer").path("name").asText()).isEqualTo("Log Doctor");
+        assertThat(agent.path("producer").path("output").asText()).isEqualTo("agent");
+        assertThat(agent.path("source").path("path").asText()).isEqualTo("logs/app.log");
+        assertThat(agent.path("incident").path("type").asText()).isNotBlank();
+        assertThat(agent.path("evidence").path("whyMatched").isArray()).isTrue();
+        assertThat(agent.path("rootCauseCandidates").isArray()).isTrue();
+        assertThat(agent.path("safety").path("automaticExecutionAllowed").asBoolean()).isFalse();
+        assertThat(agent.path("safety").path("redactionAppliedToAgentEvidence").asBoolean()).isTrue();
+    }
+
+    @Test
+    void redactsSensitiveValuesFromAgentEvidence() throws Exception {
+        var result = engine().analyzeStructured("java.lang.NullPointerException: password=hunter2 user=dev@example.com host=10.10.0.5");
+
+        String output = AgentOutputFormatter.agent(result, Path.of("logs", "app.log"));
+        JsonNode agent = JSON.readTree(output);
+
+        assertThat(output)
+                .doesNotContain("hunter2")
+                .doesNotContain("dev@example.com")
+                .doesNotContain("10.10.0.5")
+                .contains("<redacted>")
+                .contains("<redacted-email>")
+                .contains("<redacted-ip>");
+        assertThat(agent.path("safety").path("automaticExecutionAllowed").asBoolean()).isFalse();
+    }
+
+    @Test
     void parsesSupportedCliFormats() {
         assertThat(AnalyzeCommand.resolveFormat(new String[]{"--file", "app.log"})).isEqualTo("text");
         assertThat(AnalyzeCommand.resolveFormat(new String[]{"--file", "app.log", "--format=json"})).isEqualTo("json");
         assertThat(AnalyzeCommand.resolveFormat(new String[]{"--file", "app.log", "--format", "github"})).isEqualTo("github");
         assertThat(AnalyzeCommand.resolveFormat(new String[]{"--file", "app.log", "--format", "sarif"})).isEqualTo("sarif");
+        assertThat(AnalyzeCommand.resolveFormat(new String[]{"--file", "app.log", "--format", "agent"})).isEqualTo("agent");
     }
 
     @Test
