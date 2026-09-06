@@ -41,18 +41,22 @@ public final class LogDoctorWebServer {
             server.createContext("/api/analyze", exchange -> handleAnalyze(exchange, engine, metrics));
             server.createContext("/api/analyze/batch", exchange -> handleBatchAnalyze(exchange, engine, metrics));
             server.createContext("/api/health", LogDoctorWebServer::handleHealth);
+            server.createContext("/api/privacy", LogDoctorWebServer::handlePrivacy);
             server.createContext("/api/metrics", exchange -> handleMetrics(exchange, metrics));
             server.createContext("/metrics", exchange -> handlePrometheusMetrics(exchange, metrics));
             server.createContext("/", LogDoctorWebServer::handleStatic);
             server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
             server.start();
             System.out.printf("Log Doctor Web UI listening on http://%s:%d%n", host, server.getAddress().getPort());
-            System.out.println("Logs stay local; analysis uses the configured local Ollama instance.");
+            System.out.println((Boolean) PrivacyStatus.current().get("logsLeaveMachineForConfiguredLlm")
+                    ? "Deterministic analysis is local; configured Ollama endpoint is remote."
+                    : "Deterministic analysis and configured Ollama are local to this machine.");
             return server;
         } catch (IOException e) { throw new IllegalStateException("Failed to start Log Doctor web server", e); }
     }
 
     private static void handleHealth(HttpExchange exchange) throws IOException { if (requireMethod(exchange, "GET")) writeJson(exchange, 200, Map.of("status", "UP", "apiVersion", API_VERSION)); }
+    private static void handlePrivacy(HttpExchange exchange) throws IOException { if (requireMethod(exchange, "GET")) writeJson(exchange, 200, PrivacyStatus.current()); }
     private static void handleMetrics(HttpExchange exchange, RuntimeMetrics metrics) throws IOException { if (requireMethod(exchange, "GET")) writeJson(exchange, 200, metrics.asMap()); }
     private static void handlePrometheusMetrics(HttpExchange exchange, RuntimeMetrics metrics) throws IOException { if (requireMethod(exchange, "GET")) writeText(exchange, 200, metrics.prometheusText(), "text/plain; version=0.0.4; charset=utf-8"); }
     private static void handleAnalyze(HttpExchange exchange, DiagnosisEngine engine, RuntimeMetrics metrics) throws IOException { handleLogRequest(exchange, engine::analyzeStructured, metrics); }
@@ -111,7 +115,7 @@ public final class LogDoctorWebServer {
 
     private static void handleStatic(HttpExchange exchange) throws IOException {
         if (!requireStaticGet(exchange)) return;
-        String resource = switch (exchange.getRequestURI().getPath()) { case "/", "/index.html" -> "/web/index.html"; case "/app.css" -> "/web/app.css"; case "/app-core.js" -> "/web/app-core.js"; case "/app.js" -> "/web/app.js"; default -> null; };
+        String resource = switch (exchange.getRequestURI().getPath()) { case "/", "/index.html" -> "/web/index.html"; case "/app.css" -> "/web/app.css"; case "/app-core.js" -> "/web/app-core.js"; case "/privacy.js" -> "/web/privacy.js"; case "/app.js" -> "/web/app.js"; default -> null; };
         if (resource == null) { writeText(exchange, 404, "Not found", "text/plain; charset=utf-8"); return; }
         try (InputStream in = LogDoctorWebServer.class.getResourceAsStream(resource)) { if (in == null) { writeText(exchange, 404, "Not found", "text/plain; charset=utf-8"); return; } writeResponse(exchange, 200, in.readAllBytes(), contentType(resource)); }
     }
