@@ -43,6 +43,7 @@ logs -> deterministic diagnosis + evidence -> developer / CI / coding agent -> p
 - structured JSON and downloadable Markdown incident reports
 - file upload / drag-and-drop web dashboard
 - deterministic sensitive-data redaction before the LLM boundary
+- per-analysis redaction reports with category/count metadata only — never the matched values
 - Docker Compose support and real Docker/Ollama end-to-end CI coverage
 
 ## Fastest start: full Docker stack
@@ -66,7 +67,9 @@ Default bind: `127.0.0.1:8080`.
 
 ## API and dashboard
 
-`POST /api/analyze` returns one structured diagnosis. `POST /api/analyze/batch` returns grouped incidents and advanced batch insights. Every HTTP response includes `X-Log-Doctor-Api-Version: 1`. The dashboard renders backend-owned grouping, match evidence, remediation guardrails and playbooks without duplicating policy logic client-side. Automatic remediation execution remains disabled.
+`POST /api/analyze` returns one structured diagnosis. `POST /api/analyze/batch` returns grouped incidents and advanced batch insights. Every HTTP response includes `X-Log-Doctor-Api-Version: 1`. Analysis responses also include a `redactionReport` that exposes only aggregate counts/categories such as `SECRET_ASSIGNMENT`, `EMAIL` or `IPV4`; matched sensitive values are never included in that report. The dashboard renders the same report alongside backend-owned grouping, match evidence, remediation guardrails and playbooks. Automatic remediation execution remains disabled.
+
+See [docs/redaction-reporting.md](docs/redaction-reporting.md) for the reporting contract and limitations.
 
 ## Coding-agent integration
 
@@ -104,4 +107,4 @@ Remediation guidance is backend-owned and investigation-first. Match confidence 
 
 ## Documentation
 
-Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, agent integration, observability, benchmarks, CI/SARIF integration, supply-chain security, release integrity and the [release-readiness checklist](docs/release-readiness.md).
+Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, agent integration, redaction reporting, observability, benchmarks, CI/SARIF integration, supply-chain security, release integrity and the [release-readiness checklist](docs/release-readiness.md).
