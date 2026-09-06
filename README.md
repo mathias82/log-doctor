@@ -30,6 +30,7 @@ logs -> deterministic diagnosis + evidence -> developer / CI / coding agent -> p
 - stack-trace-aware grouping and structured grouping metadata
 - versioned HTTP API contract signal
 - CI-friendly JSON, GitHub annotations, SARIF 2.1.0 and GitHub Code Scanning integration
+- provider-neutral, redacted `agent` JSON output for coding-agent workflows
 - official composite GitHub Action with severity-aware failure policies and stable CI exit codes
 - privacy-safe request and incident observability, Prometheus latency histogram, error counters and local-LLM usage metrics
 - Prometheus scrape endpoint plus OpenTelemetry Collector bridge configuration
@@ -71,7 +72,13 @@ Default bind: `127.0.0.1:8080`.
 
 Log Doctor is designed to complement coding agents rather than compete with them. Known production failures can be classified deterministically first; the resulting diagnosis, match evidence, root-cause candidates and investigation guidance can then become structured context for an agent that has access to the source repository.
 
-The provider-neutral contract and safety invariants are documented in [docs/agent-integration.md](docs/agent-integration.md). A dedicated agent adapter/output mode is a future integration surface; the deterministic engine remains independently useful without an agent or LLM.
+A provider-neutral agent envelope is available from the CLI:
+
+```bash
+java -jar target/log-doctor-0.4.2.jar --file app.log --format agent
+```
+
+The `agent` format redacts agent-facing evidence before serialization and carries explicit safety metadata such as `automaticExecutionAllowed=false`. The contract and safety invariants are documented in [docs/agent-integration.md](docs/agent-integration.md). The deterministic engine remains independently useful without an agent or LLM.
 
 ## Runtime observability
 
@@ -85,7 +92,7 @@ Prometheus includes a `log_doctor_analysis_latency_milliseconds` histogram with 
 
 ## CI, GitHub Actions and SARIF
 
-The CLI supports `text`, `json`, `github` and `sarif` output plus `--fail-on none|diagnosis|high|critical`. Stable exit codes distinguish success, policy-triggered findings and usage/analysis errors. The repository includes an official composite GitHub Action and SARIF Code Scanning smoke coverage. See [docs/ci-github-integration.md](docs/ci-github-integration.md) and [docs/sarif-code-scanning.md](docs/sarif-code-scanning.md).
+The CLI supports `text`, `json`, `github`, `sarif` and `agent` output plus `--fail-on none|diagnosis|high|critical`. Stable exit codes distinguish success, policy-triggered findings and usage/analysis errors. The repository includes an official composite GitHub Action and SARIF Code Scanning smoke coverage. See [docs/ci-github-integration.md](docs/ci-github-integration.md) and [docs/sarif-code-scanning.md](docs/sarif-code-scanning.md).
 
 ## Trust and safety model
 
