@@ -28,7 +28,7 @@ class ContributionAssetTest {
         var page = client.send(HttpRequest.newBuilder(URI.create(base + "/")).GET().build(), HttpResponse.BodyHandlers.ofString());
 
         assertThat(helper.statusCode()).isEqualTo(200);
-        assertThat(helper.body()).contains("LogDoctorContribution", "values", "issues/new");
+        assertThat(helper.body()).contains("LogDoctorContribution", "issues/new", "Sanitized evidence");
         assertThat(page.body()).contains("contributionPanel", "/contribute.js", "Review sanitized GitHub issue");
     }
 }
