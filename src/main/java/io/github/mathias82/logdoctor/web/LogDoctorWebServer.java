@@ -115,7 +115,7 @@ public final class LogDoctorWebServer {
 
     private static void handleStatic(HttpExchange exchange) throws IOException {
         if (!requireStaticGet(exchange)) return;
-        String resource = switch (exchange.getRequestURI().getPath()) { case "/", "/index.html" -> "/web/index.html"; case "/app.css" -> "/web/app.css"; case "/app-core.js" -> "/web/app-core.js"; case "/app.js" -> "/web/app.js"; default -> null; };
+        String resource = switch (exchange.getRequestURI().getPath()) { case "/", "/index.html" -> "/web/index.html"; case "/app.css" -> "/web/app.css"; case "/app-core.js" -> "/web/app-core.js"; case "/privacy.js" -> "/web/privacy.js"; case "/app.js" -> "/web/app.js"; default -> null; };
         if (resource == null) { writeText(exchange, 404, "Not found", "text/plain; charset=utf-8"); return; }
         try (InputStream in = LogDoctorWebServer.class.getResourceAsStream(resource)) { if (in == null) { writeText(exchange, 404, "Not found", "text/plain; charset=utf-8"); return; } writeResponse(exchange, 200, in.readAllBytes(), contentType(resource)); }
     }
