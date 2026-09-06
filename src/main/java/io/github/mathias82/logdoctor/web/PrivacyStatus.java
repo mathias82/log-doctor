@@ -38,6 +38,7 @@ final class PrivacyStatus {
             return "localhost".equals(normalized)
                     || "127.0.0.1".equals(normalized)
                     || "::1".equals(normalized)
+                    || "[::1]".equals(normalized)
                     || "0:0:0:0:0:0:0:1".equals(normalized);
         } catch (IllegalArgumentException ignored) {
             return false;
