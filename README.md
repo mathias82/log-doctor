@@ -4,11 +4,17 @@
 
 # 🩺 Log Doctor
 
-**Deterministic + local-LLM production log diagnosis for JVM / Spring / Kafka.**
+**Deterministic production-log diagnosis for JVM / Spring / Kafka — for developers, CI pipelines and coding agents.**
 
 Log Doctor analyzes JVM logs, groups repeated failures, builds timelines, detects spikes, scores likely failure chains, and uses deterministic diagnosis before optional local Ollama reasoning.
 
-> **Log Doctor doesn't replace an LLM. It decides what doesn't need one.**
+> **Log Doctor doesn't replace an LLM or coding agent. It gives them deterministic, auditable evidence — and decides what doesn't need AI at all.**
+
+The intended workflow is:
+
+```text
+logs -> deterministic diagnosis + evidence -> developer / CI / coding agent -> proposed change -> human review
+```
 
 ![Log Doctor dashboard](docs/images/dashboard-overview.svg)
 
@@ -61,6 +67,12 @@ Default bind: `127.0.0.1:8080`.
 
 `POST /api/analyze` returns one structured diagnosis. `POST /api/analyze/batch` returns grouped incidents and advanced batch insights. Every HTTP response includes `X-Log-Doctor-Api-Version: 1`. The dashboard renders backend-owned grouping, match evidence, remediation guardrails and playbooks without duplicating policy logic client-side. Automatic remediation execution remains disabled.
 
+## Coding-agent integration
+
+Log Doctor is designed to complement coding agents rather than compete with them. Known production failures can be classified deterministically first; the resulting diagnosis, match evidence, root-cause candidates and investigation guidance can then become structured context for an agent that has access to the source repository.
+
+The provider-neutral contract and safety invariants are documented in [docs/agent-integration.md](docs/agent-integration.md). A dedicated agent adapter/output mode is a future integration surface; the deterministic engine remains independently useful without an agent or LLM.
+
 ## Runtime observability
 
 The embedded server exposes aggregate process-local metrics at `GET /api/metrics` as JSON and `GET /metrics` in Prometheus text format. Request volume and returned incident volume are tracked separately. Batch requests containing only unknown incidents are classified as unknown rather than deterministic diagnoses.
@@ -75,14 +87,14 @@ Prometheus includes a `log_doctor_analysis_latency_milliseconds` histogram with 
 
 The CLI supports `text`, `json`, `github` and `sarif` output plus `--fail-on none|diagnosis|high|critical`. Stable exit codes distinguish success, policy-triggered findings and usage/analysis errors. The repository includes an official composite GitHub Action and SARIF Code Scanning smoke coverage. See [docs/ci-github-integration.md](docs/ci-github-integration.md) and [docs/sarif-code-scanning.md](docs/sarif-code-scanning.md).
 
-## Remediation reporting
+## Trust and safety model
 
-Remediation guidance is backend-owned and investigation-first. Markdown rendering preserves the same safety metadata and presents playbooks in four explicit phases: **Inspect evidence**, **Change candidates**, **Validate recovery**, and **Escalate when**. These steps are guidance only; they never authorize or execute a change.
+Log Doctor should not be trusted merely because it is open source. Its trust model is inspectable code, local execution, deterministic analysis and an optional local LLM. Whether that is preferable to a cloud service depends on the user's environment and threat model.
 
-## Safety
+Sensitive-data redaction is defense-in-depth, not a substitute for safe application logging. Credentials and secrets should not be logged in the first place. Redaction exists because Log Doctor may analyze logs produced by applications, dependencies and legacy systems it does not control.
 
-Log Doctor is investigation-first. Match confidence is evidence strength, not execution authority. `NO_AUTOMATIC_FIX` remains authoritative and remediation metadata keeps `automaticExecutionAllowed=false`.
+Remediation guidance is backend-owned and investigation-first. Match confidence is evidence strength, not execution authority. `NO_AUTOMATIC_FIX` remains authoritative and remediation metadata keeps `automaticExecutionAllowed=false`.
 
 ## Documentation
 
-Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, observability, benchmarks, CI/SARIF integration, supply-chain security, release integrity and the [release-readiness checklist](docs/release-readiness.md).
+Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, agent integration, observability, benchmarks, CI/SARIF integration, supply-chain security, release integrity and the [release-readiness checklist](docs/release-readiness.md).
