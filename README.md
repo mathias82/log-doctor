@@ -105,6 +105,22 @@ Sensitive-data redaction is defense-in-depth, not a substitute for safe applicat
 
 Remediation guidance is backend-owned and investigation-first. Match confidence is evidence strength, not execution authority. `NO_AUTOMATIC_FIX` remains authoritative and remediation metadata keeps `automaticExecutionAllowed=false`.
 
+
+## Good First Contribution
+
+New to Log Doctor? A good first contribution is adding or improving a deterministic diagnostic rule.
+
+Start with the [deterministic rule contribution guide](docs/contributing-diagnostic-rules.md). It walks through the complete process:
+
+* identify a deterministic diagnostic signal;
+* find or create the appropriate incident and rule;
+* add positive and negative/near-miss tests;
+* add regression corpus coverage where appropriate;
+* run local validation before opening a pull request.
+
+Keep rules precise, use synthetic or sanitized log examples, and avoid broad patterns that could create false positives. Diagnostic rules do not enable automatic remediation; `automaticExecutionAllowed=false` remains unchanged.
+
+
 ## Documentation
 
 Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, agent integration, redaction reporting, observability, benchmarks, CI/SARIF integration, supply-chain security, release integrity and the [release-readiness checklist](docs/release-readiness.md).
