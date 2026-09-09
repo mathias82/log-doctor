@@ -49,6 +49,21 @@ public class DiagnosisEngine {
                 llm);
     }
 
+    public DiagnosisEngine(RuleFailureListener failureListener) {
+        this(new OllamaLlmClient(), failureListener);
+    }
+
+    public DiagnosisEngine(LlmClient llm, RuleFailureListener failureListener) {
+        this(
+                new IncidentDetector(failureListener),
+                new LogParser(),
+                new FailureLocator(),
+                new FailureContextExtractor(),
+                new CauseChainAnalyzer(),
+                new MatchConfidenceScorer(),
+                llm);
+    }
+
     DiagnosisEngine(
             IncidentDetector detector,
             LogParser parser,

@@ -53,43 +53,57 @@ public class IncidentDetector {
             new KafkaJsonDeserializationRule(),
             new PersistenceConcurrencyRule(),
             new SpringBootStartupFailureRule(),
-            new KafkaOperationalFailureRule()
-    );
+            new KafkaOperationalFailureRule());
 
     private final List<IncidentRule> rules;
 
     /**
      * Builds the default detector and loads additional deterministic rules from
-     * {@link IncidentRuleProvider} implementations visible through {@link ServiceLoader}.
+     * {@link IncidentRuleProvider} implementations visible through
+     * {@link ServiceLoader}.
      * Extension rules run after Log Doctor's specialized rules and before the broad
      * common-failure catalog, preserving built-in precedence while allowing custom
      * organization/domain diagnostics to beat the generic catch layer.
      *
-     * <p>Extension failures are isolated from core diagnosis: provider loading and
-     * extension rule runtime failures are logged and skipped so a broken third-party
-     * rule cannot take down the analyzer.</p>
+     * <p>
+     * Extension failures are isolated from core diagnosis: provider loading and
+     * extension rule runtime failures are logged and skipped so a broken
+     * third-party
+     * rule cannot take down the analyzer.
+     * </p>
      */
     public IncidentDetector() {
-        this(loadExtensionRules());
+        this(() -> {
+        });
     }
 
     /**
      * Builds a detector with explicit extension rules. This is useful for embedded
-     * integrations and tests that do not want classpath-wide ServiceLoader discovery.
+     * integrations and tests that do not want classpath-wide ServiceLoader
+     * discovery.
      */
-    public IncidentDetector(List<IncidentRule> extensionRules) {
+    public IncidentDetector(List<IncidentRule> extensionRules, RuleFailureListener failureListener) {
         List<IncidentRule> ordered = new ArrayList<>(SPECIALIZED_RULES);
         if (extensionRules != null) {
             extensionRules.stream()
                     .filter(rule -> rule != null)
-                    .map(SafeExtensionRule::new)
+                    .map(rule -> new SafeExtensionRule(rule, failureListener))
                     .forEach(ordered::add);
         }
         ordered.add(new CommonFailureCatalogRule());
         this.rules = List.copyOf(ordered);
     }
 
-    private static List<IncidentRule> loadExtensionRules() {
+    public IncidentDetector(RuleFailureListener failureListener) {
+        this(loadExtensionRules(failureListener), failureListener);
+    }
+
+    public IncidentDetector(List<IncidentRule> extensionRules) {
+        this(extensionRules, () -> {
+        });
+    }
+
+    private static List<IncidentRule> loadExtensionRules(RuleFailureListener failureListener) {
         List<IncidentRule> loaded = new ArrayList<>();
         try {
             ServiceLoader.load(IncidentRuleProvider.class).forEach(provider -> {
@@ -101,6 +115,7 @@ public class IncidentDetector {
                 } catch (RuntimeException e) {
                     LOG.warn("Skipping IncidentRuleProvider {} because rules() failed: {}",
                             provider.getClass().getName(), e.toString());
+                    failureListener.ruleFailureDetected();
                 }
             });
         } catch (ServiceConfigurationError error) {
@@ -123,8 +138,7 @@ public class IncidentDetector {
                         ? List.of("Matched deterministic rule " + ruleName(rule))
                         : List.of(
                                 "Matched deterministic rule " + ruleName(rule),
-                                "Matching evidence: " + firstLine(evidence)
-                        );
+                                "Matching evidence: " + firstLine(evidence));
                 return Optional.of(new Detection(matched, ruleName(rule), reasons));
             }
         }
@@ -141,9 +155,11 @@ public class IncidentDetector {
 
     private static final class SafeExtensionRule implements IncidentRule {
         private final IncidentRule delegate;
+        private final RuleFailureListener failureListener;
 
-        private SafeExtensionRule(IncidentRule delegate) {
+        private SafeExtensionRule(IncidentRule delegate, RuleFailureListener failureListener) {
             this.delegate = delegate;
+            this.failureListener = failureListener;
         }
 
         @Override
@@ -153,6 +169,7 @@ public class IncidentDetector {
                 return result == null ? Optional.empty() : result;
             } catch (RuntimeException e) {
                 LOG.warn("Skipping extension rule {} after match failure: {}", delegateName(), e.toString());
+                failureListener.ruleFailureDetected();
                 return Optional.empty();
             }
         }
@@ -166,6 +183,6 @@ public class IncidentDetector {
     public record Detection(
             Incident incident,
             String rule,
-            List<String> reasons
-    ) {}
+            List<String> reasons) {
+    }
 }

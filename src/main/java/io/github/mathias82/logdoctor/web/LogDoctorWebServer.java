@@ -32,13 +32,18 @@ public final class LogDoctorWebServer {
     private static final LogRedactor REDACTOR = new LogRedactor();
     private LogDoctorWebServer() {}
 
-    public static HttpServer start(int port) { return start("127.0.0.1", port, new DiagnosisEngine()); }
-    public static HttpServer start(String host, int port) { return start(host, port, new DiagnosisEngine()); }
-    static HttpServer start(int port, DiagnosisEngine engine) { return start("127.0.0.1", port, engine); }
+    public static HttpServer start(int port) { return start("127.0.0.1", port); }
+    public static HttpServer start(String host, int port) {
+        RuntimeMetrics metrics = new RuntimeMetrics();
+        DiagnosisEngine engine = new DiagnosisEngine(metrics::recordRuleProviderFailure);
+        return start(host, port, engine, metrics); }
+    static HttpServer start(int port, DiagnosisEngine engine) { 
+        RuntimeMetrics metrics = new RuntimeMetrics();
+        return start("127.0.0.1", port, engine, metrics); }
 
-    static HttpServer start(String host, int port, DiagnosisEngine engine) {
+    static HttpServer start(String host, int port, DiagnosisEngine engine, RuntimeMetrics metrics) {
         try {
-            RuntimeMetrics metrics = new RuntimeMetrics();
+           
             HttpServer server = HttpServer.create(new InetSocketAddress(host, port), 0);
             server.createContext("/api/analyze", exchange -> handleAnalyze(exchange, engine, metrics));
             server.createContext("/api/analyze/batch", exchange -> handleBatchAnalyze(exchange, engine, metrics));
