@@ -6,6 +6,7 @@ import io.github.mathias82.logdoctor.core.IncidentCategory;
 import io.github.mathias82.logdoctor.core.Severity;
 import io.github.mathias82.logdoctor.incidents.CatalogIncident;
 import org.junit.jupiter.api.Test;
+import io.github.mathias82.logdoctor.observability.RuntimeMetrics;
 
 import java.util.List;
 import java.util.Optional;
@@ -45,13 +46,59 @@ class IncidentRuleProviderTest {
         IncidentRule broken = context -> {
             throw new IllegalStateException("plugin exploded");
         };
+        var failureCount = new int[]{0};
+        RuleFailureListener listener = () -> failureCount[0]++;
 
-        var detection = new IncidentDetector(List.of(broken))
+        var detection = new IncidentDetector(List.of(broken), listener)
                 .detectDetailed(context("java.lang.ClassNotFoundException: com.acme.LegacyAdapter"));
-
         assertThat(detection).isPresent();
         assertThat(detection.orElseThrow().incident().type()).isEqualTo("ClassNotFoundException");
+        assertThat(failureCount[0]).isEqualTo(1);
     }
+
+    @Test
+    void failingExtensionRuleUpdatesRuntimeMetrics() {
+    IncidentRule broken = context -> {
+        throw new IllegalStateException("plugin exploded");
+    };
+
+    RuntimeMetrics metrics = new RuntimeMetrics();
+
+    var detection = new IncidentDetector(
+            List.of(broken),
+            metrics::recordRuleProviderFailure
+    ).detectDetailed(
+            context("java.lang.ClassNotFoundException: com.acme.LegacyAdapter")
+    );
+
+    assertThat(detection).isPresent();
+    assertThat(metrics.snapshot().ruleProviderFailures()).isEqualTo(1);
+    assertThat(metrics.asMap().get("ruleProviderFailures")).isEqualTo(1L);
+    assertThat(metrics.prometheusText())
+            .contains("log_doctor_rule_provider_failures_total 1");
+
+}
+
+    @Test
+void failingProviderNotifiesFailureListener() {
+    var failureCount = new int[]{0};
+    RuleFailureListener listener = () -> failureCount[0]++;
+
+    new IncidentDetector(listener);
+
+    assertThat(failureCount[0]).isEqualTo(1);
+}
+@Test
+void failingProviderUpdatesRuntimeMetrics() {
+    RuntimeMetrics metrics = new RuntimeMetrics();
+
+    new IncidentDetector(metrics::recordRuleProviderFailure);
+
+    assertThat(metrics.snapshot().ruleProviderFailures()).isEqualTo(1);
+    assertThat(metrics.asMap().get("ruleProviderFailures")).isEqualTo(1L);
+    assertThat(metrics.prometheusText())
+            .contains("log_doctor_rule_provider_failures_total 1");
+}
 
     @Test
     void nullOptionalFromExtensionIsTreatedAsNoMatch() {
@@ -92,7 +139,7 @@ class IncidentRuleProviderTest {
 
     @Test
     void ignoresNullExtensionListForEmbeddedCompatibility() {
-        var detector = new IncidentDetector(null);
+        var detector = new IncidentDetector((List<IncidentRule>) null);
 
         assertThat(detector.detectDetailed(context("INFO application started"))).isEmpty();
     }
