@@ -24,7 +24,7 @@ logs -> deterministic diagnosis + evidence -> developer / CI / coding agent -> p
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
 - 120-case labelled diagnostic regression corpus with aggregate and per-category JVM/Spring/Kafka/DB quality gates
 - separate publication-safe diagnostic evaluation corpus with independently stored labels, ambiguous cases and cross-subsystem lookalikes
-- synthetic performance/load benchmark with p50/p95/p99 latency, throughput, approximate heap delta and 500-block safety-cap coverage
+- synthetic performance/load benchmark with p50/p95/p99 latency, throughput, approximate heap delta, 500-block safety-cap coverage and baseline-aware trend warnings
 - pluggable deterministic rule providers through Java `ServiceLoader`, with fail-soft isolation
 - Spring Boot startup failure-analysis extraction with `Description` / `Action` guidance
 - deterministic nested exception cause-chain extraction, `WHY MATCHED` explanations and auditable match-strength scoring
@@ -92,7 +92,7 @@ Prometheus includes a `log_doctor_analysis_latency_milliseconds` histogram with 
 
 ## Diagnostic and performance quality
 
-`DiagnosticBenchmarkTest` evaluates a checked-in 120-case labelled JVM/Spring/Kafka/DB corpus with aggregate and per-category precision, recall, false-positive and exact-rule gates. `PerformanceBenchmarkTest` exercises synthetic workloads at 50, 200, 500 and 750 incident blocks plus an approximately 2 MiB log and reports average/p50/p95/p99 latency, throughput, truncation and approximate heap delta. These are reproducible regression signals, not production-wide accuracy or SLA claims. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md) and [docs/performance-benchmark.md](docs/performance-benchmark.md).
+`DiagnosticBenchmarkTest` evaluates a checked-in 120-case labelled JVM/Spring/Kafka/DB corpus with aggregate and per-category precision, recall, false-positive and exact-rule gates. `PerformanceBenchmarkTest` exercises synthetic workloads at 50, 200, 500 and 750 incident blocks plus an approximately 2 MiB log and reports average/p50/p95/p99 latency, throughput, truncation and approximate heap delta. CI compares compatible runs against the latest successful `main` artifact and reports non-blocking relative trend warnings separately from correctness failures. These are reproducible regression signals, not production-wide accuracy or SLA claims. See [docs/diagnostic-benchmark.md](docs/diagnostic-benchmark.md) and [docs/performance-benchmark.md](docs/performance-benchmark.md).
 
 ## CI, GitHub Actions and SARIF
 
