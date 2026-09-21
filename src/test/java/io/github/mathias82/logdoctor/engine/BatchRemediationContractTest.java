@@ -36,7 +36,59 @@ class BatchRemediationContractTest {
                 .contains("Remediation safety: REVIEW_BEFORE_APPLY")
                 .contains("Automatic execution allowed: false")
                 .contains("Allowed action types: SPRING_CONFIG")
-                .contains("Verification steps:");
+                .contains("Verification steps:")
+                .contains("- Remediation playbook:");
+    }
+
+    @Test
+    void delegatesSpecializedRemediationProfileToDedicatedMarkdownRenderer() {
+        String log = failureLog("java.lang.OutOfMemoryError: Java heap space");
+
+        String report = analyzer.analyze(log).reportMarkdown();
+
+        assertThat(report)
+                .contains("**Inspect evidence:**")
+                .contains("Heap dump and GC logs")
+                .contains("**Change candidates:**")
+                .contains("Remove confirmed retention/leak source")
+                .contains("**Validate recovery:**")
+                .contains("**Escalate when:**")
+                .contains("Automatic execution allowed: false");
+    }
+
+    @Test
+    void delegatesGenericFallbackPlaybookToDedicatedMarkdownRenderer() {
+        String log = failureLog("java.lang.NoClassDefFoundError: com/acme/Missing");
+
+        String report = analyzer.analyze(log).reportMarkdown();
+
+        assertThat(report)
+                .contains("Failure evidence, cause chain and relevant runtime telemetry")
+                .contains("Apply only a change directly supported by the diagnosis")
+                .contains("Reproduce the original scenario and run focused regression tests")
+                .contains("Evidence is conflicting, incomplete or crosses an ownership boundary");
+    }
+
+    @Test
+    void keepsMultiIncidentMarkdownReadableAndDeterministic() {
+        String log = String.join(System.lineSeparator(),
+                "2026-09-02 18:00:00 ERROR allocation failed",
+                "java.lang.OutOfMemoryError: Java heap space",
+                "    at com.acme.ReportService.render(ReportService.java:41)",
+                "2026-09-02 18:00:01 INFO retry scheduled",
+                "2026-09-02 18:00:02 ERROR class loading failed",
+                "java.lang.NoClassDefFoundError: com/acme/Missing",
+                "    at com.acme.OrderService.run(OrderService.java:52)");
+
+        String first = analyzer.analyze(log).reportMarkdown();
+        String second = analyzer.analyze(log).reportMarkdown();
+
+        assertThat(first)
+                .isEqualTo(second)
+                .contains("## Incident groups")
+                .contains("1× JVM OutOfMemoryError")
+                .contains("1× NoClassDefFoundError");
+        assertThat(first.split("- Remediation playbook:", -1)).hasSize(3);
     }
 
     @Test

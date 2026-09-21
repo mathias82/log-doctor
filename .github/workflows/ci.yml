@@ -77,6 +77,25 @@ jobs:
           path: target/public-contract-compatibility.json
           if-no-files-found: ignore
 
+      - name: Add independent diagnostic evaluation to job summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f target/diagnostic-evaluation.json ]]; then
+            echo "## Independent diagnostic evaluation" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat target/diagnostic-evaluation.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload independent diagnostic evaluation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-evaluation
+          path: target/diagnostic-evaluation.json
+          if-no-files-found: ignore
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4

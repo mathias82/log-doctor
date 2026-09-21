@@ -1,0 +1,421 @@
+{
+  "datasetId": "log-doctor-independent-evaluation",
+  "schemaVersion": 1,
+  "datasetVersion": "2026-09-01",
+  "provenance": {
+    "origin": "Publication-safe scenarios written from documented JVM, Spring, Kafka and database failure semantics; no user or production logs were collected.",
+    "labelingMethod": "Expected outcomes and rationales are stored in the dataset before evaluation. Detector output is never used to create or rewrite a label.",
+    "rawProductionLogsUsed": false,
+    "labelsDerivedFromDetectorOutput": false,
+    "limitations": [
+      "The corpus is synthetic and does not estimate production-wide accuracy.",
+      "A maintainer should review labels when cases or supported diagnostics change.",
+      "Ambiguous and cross-subsystem cases intentionally stress broad token matching."
+    ]
+  },
+  "cases": [
+    {
+      "id": "eval-jvm-oom-worker",
+      "category": "JVM",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "OutOfMemoryRule",
+      "labelRationale": "A JVM allocation failed with the canonical heap-space error.",
+      "log": "2026-09-07T11:42:10Z ERROR report worker stopped\njava.lang.OutOfMemoryError: Java heap space\n\tat com.example.reporting.ReportAssembler.render(ReportAssembler.java:84)"
+    },
+    {
+      "id": "eval-jvm-npe-request",
+      "category": "JVM",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "NullPointerExceptionRule",
+      "labelRationale": "The application stack contains a concrete Java NullPointerException.",
+      "log": "2026-09-07T11:43:02Z ERROR request processing failed\njava.lang.NullPointerException: customer record was null\n\tat com.example.orders.CheckoutService.checkout(CheckoutService.java:117)"
+    },
+    {
+      "id": "eval-jvm-binary-linkage",
+      "category": "JVM",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "NoSuchMethodErrorRule",
+      "labelRationale": "The runtime calls a method that is absent from the loaded binary version.",
+      "log": "java.lang.NoSuchMethodError: 'void com.example.codec.PayloadCodec.decode(byte[])'\n\tat com.example.ingest.MessageHandler.handle(MessageHandler.java:63)"
+    },
+    {
+      "id": "eval-jvm-concurrent-modification",
+      "category": "JVM",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "ConcurrentModificationRule",
+      "labelRationale": "A Java collection was modified during iteration.",
+      "log": "java.util.ConcurrentModificationException\n\tat java.base/java.util.ArrayList$Itr.checkForComodification(ArrayList.java:1013)\n\tat com.example.jobs.BatchPlanner.plan(BatchPlanner.java:55)"
+    },
+    {
+      "id": "eval-jvm-rejected-execution",
+      "category": "JVM",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "CommonFailureCatalogRule",
+      "labelRationale": "The executor explicitly rejected submitted work.",
+      "log": "java.util.concurrent.RejectedExecutionException: Task com.example.jobs.RefreshTask rejected from java.util.concurrent.ThreadPoolExecutor"
+    },
+    {
+      "id": "eval-jvm-memory-headroom",
+      "category": "JVM",
+      "kind": "HARD_NEGATIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "Elevated but stable heap utilization is telemetry, not an allocation failure.",
+      "log": "WARN heap utilization reached 78 percent; post-GC usage stable and allocation failures=0"
+    },
+    {
+      "id": "eval-jvm-executor-recovered",
+      "category": "JVM",
+      "kind": "HARD_NEGATIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "Backpressure activated and the queue recovered without an exception.",
+      "log": "WARN executor queue crossed warning threshold; producer backpressure active; queue returned to normal"
+    },
+    {
+      "id": "eval-jvm-exception-metric-name",
+      "category": "JVM",
+      "kind": "AMBIGUOUS",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "An exception name used as a zero-valued metric label is not an observed incident.",
+      "log": "INFO metric NullPointerExceptionRate=0 for the last 15 minutes"
+    },
+    {
+      "id": "eval-jvm-node-null",
+      "category": "JVM",
+      "kind": "CROSS_SUBSYSTEM_LOOKALIKE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "This is a Node.js TypeError, not a JVM failure signature.",
+      "log": "TypeError: Cannot read properties of null (reading 'customerId')\n    at checkout (/srv/app.js:44:17)"
+    },
+    {
+      "id": "eval-jvm-python-memory",
+      "category": "JVM",
+      "kind": "CROSS_SUBSYSTEM_LOOKALIKE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "Python MemoryError should not be classified as a JVM OutOfMemoryError.",
+      "log": "Traceback (most recent call last):\n  File \"worker.py\", line 18, in build_report\nMemoryError"
+    },
+
+    {
+      "id": "eval-spring-config-bind",
+      "category": "SPRING",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "SpringConfigBindRule",
+      "labelRationale": "Spring Boot could not bind a duration property to its target type.",
+      "log": "Failed to bind properties under 'checkout.remote-timeout' to java.time.Duration\nReason: failed to convert java.lang.String to java.time.Duration"
+    },
+    {
+      "id": "eval-spring-missing-bean",
+      "category": "SPRING",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "MissingSpringBeanRule",
+      "labelRationale": "A required constructor dependency is absent from the application context.",
+      "log": "Parameter 1 of constructor in com.example.checkout.CheckoutService required a bean of type 'com.example.payments.PaymentGateway' that could not be found."
+    },
+    {
+      "id": "eval-spring-startup-analysis",
+      "category": "SPRING",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "SpringBootStartupFailureRule",
+      "labelRationale": "The canonical Spring Boot failure-analysis block reports startup failure.",
+      "log": "APPLICATION FAILED TO START\n\nDescription:\nWeb server failed to start because port 9090 was already in use.\n\nAction:\nStop the process using port 9090 or configure another port."
+    },
+    {
+      "id": "eval-spring-validation",
+      "category": "SPRING",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "MethodArgumentNotValidRule",
+      "labelRationale": "Spring MVC rejected a request through MethodArgumentNotValidException.",
+      "log": "org.springframework.web.bind.MethodArgumentNotValidException: Validation failed for argument [0] in public void createOrder(...)"
+    },
+    {
+      "id": "eval-spring-unreadable-json",
+      "category": "SPRING",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "HttpMessageNotReadableRule",
+      "labelRationale": "Spring could not deserialize an HTTP request body.",
+      "log": "org.springframework.http.converter.HttpMessageNotReadableException: JSON parse error: Unexpected character at column 14"
+    },
+    {
+      "id": "eval-spring-config-healthy",
+      "category": "SPRING",
+      "kind": "HARD_NEGATIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "The effective configuration was validated and bound successfully.",
+      "log": "INFO configuration properties bound successfully for checkout.remote-timeout=2s"
+    },
+    {
+      "id": "eval-spring-port-preflight",
+      "category": "SPRING",
+      "kind": "HARD_NEGATIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "A successful port preflight is not a Spring Boot startup failure.",
+      "log": "INFO port 9090 preflight passed; application started in 1.842 seconds"
+    },
+    {
+      "id": "eval-spring-validation-metric",
+      "category": "SPRING",
+      "kind": "AMBIGUOUS",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "A zero-valued exception counter is not an observed validation failure.",
+      "log": "INFO meter MethodArgumentNotValidException.count=0 route=/orders"
+    },
+    {
+      "id": "eval-spring-dotnet-di",
+      "category": "SPRING",
+      "kind": "CROSS_SUBSYSTEM_LOOKALIKE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "This dependency-injection message comes from .NET, not Spring.",
+      "log": "System.InvalidOperationException: Unable to resolve service for type 'IPaymentGateway' while attempting to activate 'CheckoutController'."
+    },
+    {
+      "id": "eval-spring-generic-rest-conflict",
+      "category": "SPRING",
+      "kind": "CROSS_SUBSYSTEM_LOOKALIKE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "A generic payment API conflict must not become a Schema Registry diagnosis.",
+      "log": "WARN org.springframework.web.client.RestClientException: 409 Conflict while updating payment intent"
+    },
+
+    {
+      "id": "eval-kafka-topic-authorization",
+      "category": "KAFKA",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "KafkaOperationalFailureRule",
+      "labelRationale": "Kafka denied the producer access to a named topic.",
+      "log": "org.apache.kafka.common.errors.TopicAuthorizationException: Not authorized to access topics: [order-events]"
+    },
+    {
+      "id": "eval-kafka-producer-fenced",
+      "category": "KAFKA",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "KafkaOperationalFailureRule",
+      "labelRationale": "A transactional producer lost ownership of its transactional id.",
+      "log": "org.apache.kafka.common.errors.ProducerFencedException: There is a newer producer using the same transactional.id"
+    },
+    {
+      "id": "eval-kafka-isr",
+      "category": "KAFKA",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "KafkaOperationalFailureRule",
+      "labelRationale": "The broker cannot satisfy the producer's minimum in-sync replica requirement.",
+      "log": "org.apache.kafka.common.errors.NotEnoughReplicasException: Messages are rejected because there are fewer in-sync replicas than required"
+    },
+    {
+      "id": "eval-kafka-record-limit",
+      "category": "KAFKA",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "KafkaOperationalFailureRule",
+      "labelRationale": "The serialized Kafka record exceeds the configured limit.",
+      "log": "org.apache.kafka.common.errors.RecordTooLargeException: The message is 1450000 bytes when serialized"
+    },
+    {
+      "id": "eval-kafka-schema-compatibility",
+      "category": "KAFKA",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "KafkaOperationalFailureRule",
+      "labelRationale": "Schema Registry rejected an incompatible schema version.",
+      "log": "Schema Registry RestClientException: schema is incompatible with an earlier schema for subject order-events-value; error code: 409"
+    },
+    {
+      "id": "eval-kafka-rebalance-complete",
+      "category": "KAFKA",
+      "kind": "HARD_NEGATIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "A completed rebalance is routine lifecycle information.",
+      "log": "INFO consumer group checkout-workers completed rebalance in 184 ms; assigned partitions [order-events-0, order-events-1]"
+    },
+    {
+      "id": "eval-kafka-record-within-limit",
+      "category": "KAFKA",
+      "kind": "HARD_NEGATIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "Payload size telemetry below the configured limit is not a record-size failure.",
+      "log": "DEBUG serialized Kafka record size=24832 bytes max.request.size=1048576"
+    },
+    {
+      "id": "eval-kafka-fencing-runbook",
+      "category": "KAFKA",
+      "kind": "AMBIGUOUS",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "Loading a runbook named after an exception does not mean that exception occurred.",
+      "log": "INFO loaded operational runbook ProducerFencedException for readiness checks; incident count=0"
+    },
+    {
+      "id": "eval-kafka-rabbitmq-exchange",
+      "category": "KAFKA",
+      "kind": "CROSS_SUBSYSTEM_LOOKALIKE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "A RabbitMQ exchange lookup is outside Kafka diagnostics.",
+      "log": "AMQP channel error: NOT_FOUND - no exchange 'order-events' in vhost 'integration'"
+    },
+    {
+      "id": "eval-kafka-payment-unauthorized",
+      "category": "KAFKA",
+      "kind": "CROSS_SUBSYSTEM_LOOKALIKE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "A generic payment API 401 lacks Kafka or Schema Registry context.",
+      "log": "org.springframework.web.client.RestClientException: 401 Unauthorized from payments service"
+    },
+
+    {
+      "id": "eval-db-lazy-initialization",
+      "category": "DB",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "HibernateLazyInitRule",
+      "labelRationale": "Hibernate attempted to initialize a lazy association without an open session.",
+      "log": "org.hibernate.LazyInitializationException: failed to lazily initialize a collection of role: com.example.orders.Order.lines: could not initialize proxy - no Session"
+    },
+    {
+      "id": "eval-db-hikari-timeout",
+      "category": "DB",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "HikariTimeoutRule",
+      "labelRationale": "HikariCP reports that no connection became available before the timeout.",
+      "log": "HikariPool-checkout - Connection is not available, request timed out after 20000ms"
+    },
+    {
+      "id": "eval-db-optimistic-lock",
+      "category": "DB",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "PersistenceConcurrencyRule",
+      "labelRationale": "The persistence provider detected a stale entity version.",
+      "log": "ERROR order update failed\njakarta.persistence.OptimisticLockException: Entity Order was updated by another transaction"
+    },
+    {
+      "id": "eval-db-sql-grammar",
+      "category": "DB",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "CommonFailureCatalogRule",
+      "labelRationale": "Hibernate reports invalid SQL grammar while executing a query.",
+      "log": "org.hibernate.exception.SQLGrammarException: could not extract ResultSet [select missing_column from orders]"
+    },
+    {
+      "id": "eval-db-transaction-required",
+      "category": "DB",
+      "kind": "POSITIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": true,
+      "expectedRule": "TransactionRequiredRule",
+      "labelRationale": "A modifying persistence operation ran without an active transaction.",
+      "log": "jakarta.persistence.TransactionRequiredException: Executing an update/delete query requires an active transaction"
+    },
+    {
+      "id": "eval-db-pool-healthy",
+      "category": "DB",
+      "kind": "HARD_NEGATIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "Pool telemetry shows available capacity and no waiting callers.",
+      "log": "INFO HikariPool-checkout stats total=20 active=6 idle=14 waiting=0"
+    },
+    {
+      "id": "eval-db-transaction-committed",
+      "category": "DB",
+      "kind": "HARD_NEGATIVE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "A successful commit and version increment is not a concurrency failure.",
+      "log": "DEBUG transaction committed; order version advanced from 14 to 15"
+    },
+    {
+      "id": "eval-db-lock-metric",
+      "category": "DB",
+      "kind": "AMBIGUOUS",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "A zero-valued exception counter is not an observed optimistic-lock incident.",
+      "log": "INFO dashboard sample OptimisticLockException.count=0 window=5m"
+    },
+    {
+      "id": "eval-db-mongodb-duplicate-key",
+      "category": "DB",
+      "kind": "CROSS_SUBSYSTEM_LOOKALIKE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "This MongoDB error is not one of the Hibernate/JPA/JDBC diagnoses evaluated here.",
+      "log": "MongoServerError: E11000 duplicate key error collection: orders index: orderNumber_1"
+    },
+    {
+      "id": "eval-db-redis-pool",
+      "category": "DB",
+      "kind": "CROSS_SUBSYSTEM_LOOKALIKE",
+      "source": "SYNTHETIC",
+      "expectedMatch": false,
+      "expectedRule": null,
+      "labelRationale": "A Redis client pool warning without a supported exception must not become a Hikari diagnosis.",
+      "log": "WARN Redis client pool temporarily reached maxTotal=32; borrow recovered in 12ms"
+    }
+  ]
+}

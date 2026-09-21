@@ -70,7 +70,9 @@ class PerformanceBenchmarkTest {
         }
 
         Map<String, Object> report = new LinkedHashMap<>();
+        report.put("schemaVersion", 2);
         report.put("benchmarkType", "synthetic-deterministic-regression");
+        report.put("correctnessAssertions", "PASSED");
         report.put("warmupIterations", WARMUP_ITERATIONS);
         report.put("measuredIterations", MEASURED_ITERATIONS);
         report.put("runtime", runtimeMetadata());
@@ -164,7 +166,10 @@ class PerformanceBenchmarkTest {
     private static Map<String, Object> runtimeMetadata() {
         Map<String, Object> runtime = new LinkedHashMap<>();
         runtime.put("javaVersion", System.getProperty("java.version"));
+        runtime.put("javaFeatureVersion", Runtime.version().feature());
         runtime.put("vmName", System.getProperty("java.vm.name"));
+        runtime.put("osName", System.getProperty("os.name"));
+        runtime.put("osArch", System.getProperty("os.arch"));
         runtime.put("availableProcessors", Runtime.getRuntime().availableProcessors());
         runtime.put("maxHeapBytes", Runtime.getRuntime().maxMemory());
         return runtime;
