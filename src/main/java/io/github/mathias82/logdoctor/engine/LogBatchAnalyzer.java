@@ -401,29 +401,12 @@ public final class LogBatchAnalyzer {
                     .append("- Summary: ").append(incident.summary()).append('\n')
                     .append("- Root cause: ").append(incident.rootCause()).append('\n')
                     .append("- Remediation: ").append(incident.fix()).append('\n');
-            appendRemediationMetadata(out, incident.remediation());
+            RemediationMarkdownRenderer.append(out, incident.remediation());
             out.append('\n');
         }
 
         out.append("_Root-cause chain scores and deterministic match-strength scores are evidence signals, not proof or probabilities._\n");
         return out.toString();
-    }
-
-    private static void appendRemediationMetadata(StringBuilder out, RemediationMetadata remediation) {
-        if (remediation == null) {
-            return;
-        }
-        out.append("- Remediation safety: ").append(remediation.safety()).append('\n')
-                .append("- Automatic execution allowed: ").append(remediation.automaticExecutionAllowed()).append('\n');
-        if (!remediation.allowedActions().isEmpty()) {
-            out.append("- Allowed action types: ").append(String.join(", ", remediation.allowedActions())).append('\n');
-        }
-        if (!remediation.verificationSteps().isEmpty()) {
-            out.append("- Verification steps:\n");
-            for (String step : remediation.verificationSteps()) {
-                out.append("  - ").append(step).append('\n');
-            }
-        }
     }
 
     private static String emptyReport() {
