@@ -33,6 +33,9 @@ jobs:
       - name: Verify Java
         run: mvn --batch-mode --no-transfer-progress clean verify
 
+      - name: Verify public contracts
+        run: ./scripts/check-public-contracts.sh
+
       - name: Verify browser utilities
         run: node --test src/test/js/*.test.cjs
 
@@ -47,12 +50,31 @@ jobs:
             echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Add public contract compatibility to job summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f target/public-contract-compatibility.json ]]; then
+            echo "## Public contract compatibility" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat target/public-contract-compatibility.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload diagnostic benchmark
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: diagnostic-benchmark
           path: target/diagnostic-benchmark.json
+          if-no-files-found: ignore
+
+      - name: Upload public contract compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-contract-compatibility
+          path: target/public-contract-compatibility.json
           if-no-files-found: ignore
 
       - name: Add independent diagnostic evaluation to job summary
