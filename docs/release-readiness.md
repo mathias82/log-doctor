@@ -5,6 +5,7 @@ This checklist captures the engineering gates for declaring a Log Doctor release
 ## Required gates
 
 - `mvn verify` passes on Java 21.
+- `./scripts/check-public-contracts.sh` passes and its report names every protected surface as `PASSED`.
 - GitHub Actions CI is green, including Docker/Ollama E2E, GitHub Action smoke, SARIF smoke, dependency review and performance benchmark workflows.
 - The diagnostic benchmark remains above its aggregate and per-category precision/recall/false-positive/exact-rule gates.
 - The performance benchmark shows no unexplained regression in p50/p95/p99 latency, throughput, truncation behavior or memory observations.
@@ -28,6 +29,10 @@ Before declaring 1.0, review these compatibility commitments explicitly:
 - remediation metadata/playbook shape and safety semantics
 - custom `IncidentRuleProvider` SPI loading, ordering and failure isolation
 - process-local observability metric names and semantics
+
+These commitments are inventoried and enforced by the
+[public contract compatibility gate](public-contract-compatibility.md). Additive changes remain
+allowed; intentional breaking changes must follow its documented snapshot and HTTP-version process.
 
 ## Non-blocking follow-ups
 

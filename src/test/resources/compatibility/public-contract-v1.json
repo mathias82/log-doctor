@@ -1,0 +1,340 @@
+{
+  "schemaVersion": 1,
+  "contractLine": "pre-1.0",
+  "http": {
+    "version": {
+      "header": "X-Log-Doctor-Api-Version",
+      "value": "1"
+    },
+    "health": {
+      "requiredFields": {
+        "status": "string",
+        "apiVersion": "string"
+      }
+    },
+    "analyze": {
+      "requiredFields": {
+        "status": "string",
+        "type": "string",
+        "category": "string",
+        "severity": "string",
+        "confidence": "string",
+        "location": "string",
+        "summary": "string",
+        "rootCause": "string",
+        "evidence": "string",
+        "fixType": "string",
+        "fix": "string",
+        "humanReviewRequired": "boolean",
+        "llmUsed": "boolean",
+        "failureLine": "integer",
+        "diagnosis": "string",
+        "causeChain": "array",
+        "matchReasons": "array",
+        "matchScore": "integer",
+        "matchConfidence": "string",
+        "matchScoreFactors": "array",
+        "remediation": "object",
+        "redactionReport": "object"
+      }
+    },
+    "batch": {
+      "requiredFields": {
+        "totalLines": "integer",
+        "failureBlocks": "integer",
+        "detectedFailureBlocks": "integer",
+        "truncated": "boolean",
+        "uniqueIncidents": "integer",
+        "incidents": "array",
+        "investigationOrder": "array",
+        "correlations": "array",
+        "rootCauseChains": "array",
+        "spikes": "array",
+        "reportMarkdown": "string",
+        "redactionReport": "object"
+      },
+      "requiredIncidentFields": {
+        "fingerprint": "string",
+        "count": "integer",
+        "type": "string",
+        "category": "string",
+        "severity": "string",
+        "confidence": "string",
+        "summary": "string",
+        "rootCause": "string",
+        "location": "string",
+        "fixType": "string",
+        "fix": "string",
+        "humanReviewRequired": "boolean",
+        "llmUsed": "boolean",
+        "evidence": "string",
+        "causeChain": "array",
+        "matchReasons": "array",
+        "matchScore": "integer",
+        "matchConfidence": "string",
+        "matchScoreFactors": "array",
+        "remediation": "object",
+        "grouping": "object"
+      },
+      "requiredGroupingFields": {
+        "strategy": "string",
+        "exceptionType": "string",
+        "frames": "array",
+        "lineNumbersIgnored": "boolean"
+      }
+    },
+    "redactionReportRequiredFields": {
+      "totalRedactions": "integer",
+      "sensitiveDataDetected": "boolean",
+      "categories": "object",
+      "appliedBeforeLlm": "boolean",
+      "valuesExposed": "boolean"
+    }
+  },
+  "cli": {
+    "formats": ["text", "json", "github", "sarif", "agent"],
+    "defaultFormat": "text",
+    "failOnValues": ["none", "diagnosis", "high", "critical"],
+    "defaultFailOn": "none",
+    "exitCodes": {
+      "ok": 0,
+      "policyMatched": 2,
+      "usageOrAnalysisError": 3
+    },
+    "failOnMatrix": [
+      {
+        "name": "healthy",
+        "log": "INFO service started successfully",
+        "status": "NO_FAILURE",
+        "outcomes": {"none": false, "diagnosis": false, "high": false, "critical": false}
+      },
+      {
+        "name": "medium",
+        "log": "java.lang.NullPointerException: order was null",
+        "severity": "MEDIUM",
+        "outcomes": {"none": false, "diagnosis": true, "high": false, "critical": false}
+      },
+      {
+        "name": "high",
+        "log": "org.apache.kafka.common.errors.TopicAuthorizationException: Not authorized to access topics: [orders]",
+        "severity": "HIGH",
+        "outcomes": {"none": false, "diagnosis": true, "high": true, "critical": false}
+      },
+      {
+        "name": "critical",
+        "log": "java.lang.OutOfMemoryError: Java heap space",
+        "severity": "CRITICAL",
+        "outcomes": {"none": false, "diagnosis": true, "high": true, "critical": true}
+      }
+    ]
+  },
+  "githubAction": {
+    "inputs": {
+      "log-file": {"required": "true"},
+      "fail-on": {"required": "false", "default": "none"}
+    },
+    "outputs": {
+      "exit-code": {"value": "${{ steps.analyze.outputs.exit-code }}"}
+    },
+    "requiredRunFragments": [
+      "--format github",
+      "--fail-on \"${{ inputs.fail-on }}\"",
+      "echo \"exit-code=$code\" >> \"$GITHUB_OUTPUT\""
+    ]
+  },
+  "sarif": {
+    "version": "2.1.0",
+    "ruleIdPrefix": "LOGDOCTOR-",
+    "samples": [
+      {
+        "severity": "LOW",
+        "log": "org.springframework.web.bind.MissingServletRequestParameterException: Required request parameter 'id' is not present",
+        "ruleId": "LOGDOCTOR-MISSINGSERVLETREQUESTPARAMETEREXCEPTION",
+        "level": "note"
+      },
+      {
+        "severity": "MEDIUM",
+        "log": "java.lang.NullPointerException: order was null",
+        "ruleId": "LOGDOCTOR-NULLPOINTEREXCEPTION",
+        "level": "warning"
+      },
+      {
+        "severity": "HIGH",
+        "log": "org.apache.kafka.common.errors.TopicAuthorizationException: Not authorized to access topics: [orders]",
+        "ruleId": "LOGDOCTOR-KAFKA-TOPIC-AUTHORIZATION-FAILED",
+        "level": "error"
+      },
+      {
+        "severity": "CRITICAL",
+        "log": "java.lang.OutOfMemoryError: Java heap space",
+        "ruleId": "LOGDOCTOR-JVM-OUTOFMEMORYERROR",
+        "level": "error"
+      }
+    ]
+  },
+  "remediationSafety": {
+    "requiredFields": {
+      "safety": "string",
+      "allowedActions": "array",
+      "verificationSteps": "array",
+      "automaticExecutionAllowed": "boolean",
+      "playbook": "object"
+    },
+    "requiredPlaybookFields": {
+      "inspect": "array",
+      "changeCandidates": "array",
+      "validate": "array",
+      "escalationSignals": "array"
+    },
+    "automaticExecutionAllowed": false,
+    "manualOnlySample": {
+      "log": "org.apache.kafka.common.errors.TopicAuthorizationException: Not authorized to access topics: [orders]",
+      "fixType": "NO_AUTOMATIC_FIX",
+      "humanReviewRequired": true,
+      "safety": "HUMAN_REVIEW_REQUIRED",
+      "allowedAction": "NO_AUTOMATIC_FIX"
+    }
+  },
+  "prometheusMetricNames": [
+    "log_doctor_analyses_total",
+    "log_doctor_incidents_total",
+    "log_doctor_deterministic_diagnoses_total",
+    "log_doctor_unknown_diagnoses_total",
+    "log_doctor_no_failure_total",
+    "log_doctor_llm_used_total",
+    "log_doctor_analysis_errors_total",
+    "log_doctor_rule_provider_failures_total",
+    "log_doctor_analysis_latency_milliseconds_bucket",
+    "log_doctor_analysis_latency_milliseconds_sum",
+    "log_doctor_analysis_latency_milliseconds_count",
+    "log_doctor_analysis_latency_average_ms",
+    "log_doctor_analysis_latency_max_ms"
+  ],
+  "spi": {
+    "interfaces": [
+      {
+        "name": "io.github.mathias82.logdoctor.engine.IncidentRule",
+        "methods": [
+          {"name": "match", "parameters": ["io.github.mathias82.logdoctor.engine.RuleContext"], "returns": "java.util.Optional"}
+        ]
+      },
+      {
+        "name": "io.github.mathias82.logdoctor.engine.IncidentRuleProvider",
+        "methods": [
+          {"name": "rules", "parameters": [], "returns": "java.util.List"}
+        ]
+      },
+      {
+        "name": "io.github.mathias82.logdoctor.engine.RuleFailureListener",
+        "methods": [
+          {"name": "ruleFailureDetected", "parameters": [], "returns": "void"}
+        ]
+      }
+    ],
+    "behaviors": [
+      "specialized-built-ins-before-extensions",
+      "extensions-before-common-catalog",
+      "first-extension-match-wins",
+      "extension-failures-are-isolated-and-reported"
+    ]
+  },
+  "javaApi": {
+    "types": [
+      {
+        "name": "io.github.mathias82.logdoctor.engine.DiagnosisEngine",
+        "constructors": [
+          [],
+          ["io.github.mathias82.logdoctor.llm.LlmClient"],
+          ["io.github.mathias82.logdoctor.engine.RuleFailureListener"],
+          ["io.github.mathias82.logdoctor.llm.LlmClient", "io.github.mathias82.logdoctor.engine.RuleFailureListener"]
+        ],
+        "methods": [
+          {"name": "analyze", "parameters": ["java.lang.String"], "returns": "void"},
+          {"name": "analyzeToText", "parameters": ["java.lang.String"], "returns": "java.lang.String"},
+          {"name": "analyzeStructured", "parameters": ["java.lang.String"], "returns": "io.github.mathias82.logdoctor.engine.DiagnosisEngine$DiagnosisResult"}
+        ]
+      },
+      {
+        "name": "io.github.mathias82.logdoctor.engine.DiagnosisEngine$DiagnosisResult",
+        "canonicalConstructor": [
+          "java.lang.String", "java.lang.String", "java.lang.String", "java.lang.String", "java.lang.String",
+          "java.lang.String", "java.lang.String", "java.lang.String", "java.lang.String", "java.lang.String",
+          "java.lang.String", "boolean", "boolean", "java.lang.Integer", "java.lang.String", "java.util.List",
+          "java.util.List", "int", "java.lang.String", "java.util.List",
+          "io.github.mathias82.logdoctor.core.RemediationMetadata"
+        ],
+        "recordComponents": {
+          "status": "java.lang.String",
+          "type": "java.lang.String",
+          "category": "java.lang.String",
+          "severity": "java.lang.String",
+          "confidence": "java.lang.String",
+          "location": "java.lang.String",
+          "summary": "java.lang.String",
+          "rootCause": "java.lang.String",
+          "evidence": "java.lang.String",
+          "fixType": "java.lang.String",
+          "fix": "java.lang.String",
+          "humanReviewRequired": "boolean",
+          "llmUsed": "boolean",
+          "failureLine": "java.lang.Integer",
+          "diagnosis": "java.lang.String",
+          "causeChain": "java.util.List",
+          "matchReasons": "java.util.List",
+          "matchScore": "int",
+          "matchConfidence": "java.lang.String",
+          "matchScoreFactors": "java.util.List",
+          "remediation": "io.github.mathias82.logdoctor.core.RemediationMetadata"
+        }
+      },
+      {
+        "name": "io.github.mathias82.logdoctor.core.RemediationMetadata",
+        "canonicalConstructor": [
+          "java.lang.String", "java.util.List", "java.util.List", "boolean",
+          "io.github.mathias82.logdoctor.core.RemediationPlaybook"
+        ],
+        "recordComponents": {
+          "safety": "java.lang.String",
+          "allowedActions": "java.util.List",
+          "verificationSteps": "java.util.List",
+          "automaticExecutionAllowed": "boolean",
+          "playbook": "io.github.mathias82.logdoctor.core.RemediationPlaybook"
+        }
+      },
+      {
+        "name": "io.github.mathias82.logdoctor.core.RemediationPlaybook",
+        "canonicalConstructor": ["java.util.List", "java.util.List", "java.util.List", "java.util.List"],
+        "recordComponents": {
+          "inspect": "java.util.List",
+          "changeCandidates": "java.util.List",
+          "validate": "java.util.List",
+          "escalationSignals": "java.util.List"
+        }
+      },
+      {
+        "name": "io.github.mathias82.logdoctor.engine.IncidentDetector",
+        "constructors": [
+          [],
+          ["java.util.List"],
+          ["io.github.mathias82.logdoctor.engine.RuleFailureListener"],
+          ["java.util.List", "io.github.mathias82.logdoctor.engine.RuleFailureListener"]
+        ],
+        "methods": [
+          {"name": "detect", "parameters": ["io.github.mathias82.logdoctor.engine.RuleContext"], "returns": "java.util.Optional"},
+          {"name": "detectDetailed", "parameters": ["io.github.mathias82.logdoctor.engine.RuleContext"], "returns": "java.util.Optional"}
+        ]
+      },
+      {
+        "name": "io.github.mathias82.logdoctor.engine.RuleContext",
+        "canonicalConstructor": [
+          "java.util.List", "io.github.mathias82.logdoctor.engine.FailureLocator$Failure", "java.lang.String"
+        ],
+        "recordComponents": {
+          "lines": "java.util.List",
+          "failure": "io.github.mathias82.logdoctor.engine.FailureLocator$Failure",
+          "contextText": "java.lang.String"
+        }
+      }
+    ]
+  }
+}

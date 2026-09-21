@@ -29,6 +29,7 @@ logs -> deterministic diagnosis + evidence -> developer / CI / coding agent -> p
 - deterministic nested exception cause-chain extraction, `WHY MATCHED` explanations and auditable match-strength scoring
 - stack-trace-aware grouping and structured grouping metadata
 - versioned HTTP API contract signal
+- automated public-contract compatibility gate for HTTP, CLI, Action, SARIF, remediation, SPI, metrics and Java API surfaces
 - CI-friendly JSON, GitHub annotations, SARIF 2.1.0 and GitHub Code Scanning integration
 - provider-neutral, redacted `agent` JSON output for coding-agent workflows
 - official composite GitHub Action with severity-aware failure policies and stable CI exit codes
@@ -123,4 +124,4 @@ Keep rules precise, use synthetic or sanitized log examples, and avoid broad pat
 
 ## Documentation
 
-Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, agent integration, redaction reporting, observability, benchmarks, CI/SARIF integration, supply-chain security, release integrity and the [release-readiness checklist](docs/release-readiness.md).
+Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, agent integration, redaction reporting, observability, benchmarks, CI/SARIF integration, supply-chain security, release integrity, the [public-contract compatibility gate](docs/public-contract-compatibility.md) and the [release-readiness checklist](docs/release-readiness.md).
