@@ -46,3 +46,5 @@ Rules that depend on a shared exception name should require subsystem evidence r
 ## Interpretation
 
 These metrics are regression gates for the checked-in curated corpus. They are not a claim of production-wide statistical accuracy. The corpus is intentionally synthetic/curated and reproducible. Production precision requires a larger independently labelled dataset from real workloads and should be tracked separately from this deterministic regression benchmark.
+
+Broader, non-gating evidence is now produced from a separate publication-safe dataset. See [Independent diagnostic evaluation](diagnostic-evaluation.md) for its provenance, labelling rules, ambiguous/cross-subsystem cases and machine-readable report. It does not replace or weaken the regression corpus or its thresholds.
