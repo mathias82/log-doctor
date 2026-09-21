@@ -23,6 +23,7 @@ logs -> deterministic diagnosis + evidence -> developer / CI / coding agent -> p
 - deterministic incident detection before AI
 - broad curated Java/JVM, Spring, Hibernate/JPA, JDBC/Hikari, Kafka and Schema Registry error catalog
 - 120-case labelled diagnostic regression corpus with aggregate and per-category JVM/Spring/Kafka/DB quality gates
+- separate publication-safe diagnostic evaluation corpus with independently stored labels, ambiguous cases and cross-subsystem lookalikes
 - synthetic performance/load benchmark with p50/p95/p99 latency, throughput, approximate heap delta and 500-block safety-cap coverage
 - pluggable deterministic rule providers through Java `ServiceLoader`, with fail-soft isolation
 - Spring Boot startup failure-analysis extraction with `Description` / `Action` guidance
@@ -123,4 +124,4 @@ Keep rules precise, use synthetic or sanitized log examples, and avoid broad pat
 
 ## Documentation
 
-Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, agent integration, redaction reporting, observability, benchmarks, CI/SARIF integration, supply-chain security, release integrity and the [release-readiness checklist](docs/release-readiness.md).
+Detailed documentation lives under [`docs/`](docs/), including supported incidents, Kafka diagnostics, custom rule providers, API contract, agent integration, redaction reporting, observability, [regression benchmarking](docs/diagnostic-benchmark.md), [independent diagnostic evaluation](docs/diagnostic-evaluation.md), performance benchmarking, CI/SARIF integration, supply-chain security, release integrity and the [release-readiness checklist](docs/release-readiness.md).
