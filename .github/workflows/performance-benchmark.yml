@@ -1,21 +1,36 @@
 name: Performance benchmark
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/main/java/**'
+      - 'src/test/java/io/github/mathias82/logdoctor/engine/PerformanceBenchmark*.java'
+      - 'docs/performance-benchmark.md'
+      - '.github/workflows/performance-benchmark.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'src/main/java/**'
-      - 'src/test/java/io/github/mathias82/logdoctor/engine/PerformanceBenchmarkTest.java'
+      - 'src/test/java/io/github/mathias82/logdoctor/engine/PerformanceBenchmark*.java'
+      - 'docs/performance-benchmark.md'
       - '.github/workflows/performance-benchmark.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   benchmark:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      JAVA_TOOL_OPTIONS: -XX:ActiveProcessorCount=2 -Xmx1024m
+      PERFORMANCE_WARN_LATENCY_PERCENT: '25'
+      PERFORMANCE_WARN_THROUGHPUT_PERCENT: '20'
+      PERFORMANCE_WARN_HEAP_PERCENT: '50'
+      PERFORMANCE_RUNTIME_HEAP_TOLERANCE_PERCENT: '10'
 
     steps:
       - name: Checkout
@@ -31,6 +46,50 @@ jobs:
       - name: Run performance benchmark
         run: mvn --batch-mode --no-transfer-progress -Dtest=PerformanceBenchmarkTest test
 
+      - name: Download latest successful main baseline
+        id: baseline
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(gh api --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/performance-benchmark.yml/runs" \
+            -f branch="${{ github.event.repository.default_branch }}" \
+            -f event=push \
+            -f status=success \
+            -f per_page=1 \
+            --jq '.workflow_runs[0].id // empty')"
+          if [[ -z "$run_id" ]]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No successful main-branch performance baseline is available yet."
+            exit 0
+          fi
+
+          mkdir -p target/performance-baseline
+          if gh run download "$run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name performance-benchmark \
+            --dir target/performance-baseline; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "The latest main run has no downloadable performance-benchmark artifact."
+          fi
+
+      - name: Compare with main baseline
+        if: steps.baseline.outputs.found == 'true'
+        run: >-
+          mvn --batch-mode --no-transfer-progress
+          -Dtest=PerformanceBenchmarkComparisonTest
+          -Dperformance.current=target/performance-benchmark.json
+          -Dperformance.baseline=target/performance-baseline/performance-benchmark.json
+          -Dperformance.warnLatencyPercent=${PERFORMANCE_WARN_LATENCY_PERCENT}
+          -Dperformance.warnThroughputPercent=${PERFORMANCE_WARN_THROUGHPUT_PERCENT}
+          -Dperformance.warnHeapPercent=${PERFORMANCE_WARN_HEAP_PERCENT}
+          -Dperformance.runtimeHeapTolerancePercent=${PERFORMANCE_RUNTIME_HEAP_TOLERANCE_PERCENT}
+          test
+
       - name: Add benchmark to job summary
         if: always()
         shell: bash
@@ -41,6 +100,14 @@ jobs:
             cat target/performance-benchmark.json >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [[ -f target/performance-comparison.md ]]; then
+            echo >> "$GITHUB_STEP_SUMMARY"
+            cat target/performance-comparison.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo >> "$GITHUB_STEP_SUMMARY"
+            echo "## Performance benchmark comparison" >> "$GITHUB_STEP_SUMMARY"
+            echo "No successful main-branch baseline was available; the raw benchmark remains published." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload performance benchmark
         if: always()
@@ -49,3 +116,13 @@ jobs:
           name: performance-benchmark
           path: target/performance-benchmark.json
           if-no-files-found: error
+
+      - name: Upload performance comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-benchmark-comparison
+          path: |
+            target/performance-comparison.json
+            target/performance-comparison.md
+          if-no-files-found: ignore
